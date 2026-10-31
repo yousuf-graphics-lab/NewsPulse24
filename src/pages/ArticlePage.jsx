@@ -184,6 +184,24 @@ export default function ArticlePage() {
               {story.excerpt}
             </p>
 
+            {story.attribution ? (
+              <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[4px] border border-line bg-ink-850/60 px-2.5 py-1.5 text-[10.5px] leading-snug text-muted">
+                <span className="rounded-[2px] border border-pulse/40 bg-pulse/[0.1] px-1.5 py-[2px] text-[8.5px] font-bold uppercase tracking-[0.12em] text-pulse-400">
+                  Wire report
+                </span>
+                Assembled by the NewsPulse 24 wire agent from reporting published by{' '}
+                <a
+                  href={story.attribution.url}
+                  target="_blank"
+                  rel="noreferrer nofollow"
+                  className="font-semibold text-bone/85 underline decoration-line-soft underline-offset-2 hover:text-pulse"
+                >
+                  {story.attribution.name}
+                </a>
+                . Read the original for the full account.
+              </p>
+            ) : null}
+
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-y border-line py-2.5">
               <div className="flex items-center gap-2.5">
                 <span className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-pulse to-pulse-600 text-[11px] font-bold text-white ring-1 ring-white/10">

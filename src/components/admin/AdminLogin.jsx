@@ -9,7 +9,9 @@ import {
   lockRemaining,
   MAX_ATTEMPTS,
   registerFailure,
+  twoFactorEnrolled,
   verifyCredentials,
+  verifySecondFactor,
 } from '../../lib/adminAuth';
 
 const WAIT_STEPS = [30_000, 60_000, 120_000, 240_000, 480_000, 900_000];
@@ -22,8 +24,11 @@ export default function AdminLogin({ onSuccess }) {
   const [busy, setBusy] = useState(false);
   const [lockMs, setLockMs] = useState(() => lockRemaining());
   const [fails, setFails] = useState(() => failedAttempts());
+  const [stage, setStage] = useState('password');
+  const [code, setCode] = useState('');
   const passwordRef = useRef(null);
   const userRef = useRef(null);
+  const codeRef = useRef(null);
 
   const locked = lockMs > 0;
   const cryptoReady = isCryptoAvailable();
@@ -40,27 +45,68 @@ export default function AdminLogin({ onSuccess }) {
     userRef.current?.focus();
   }, [cryptoReady]);
 
+  const registerFail = (message) => {
+    const { fails: nextFails, lockedUntil } = registerFailure();
+    setFails(nextFails);
+    setLockMs(Math.max(0, lockedUntil - Date.now()));
+    setError(message);
+  };
+
   const submit = async (event) => {
     event.preventDefault();
     if (busy || locked) return;
     setError('');
+
+    if (stage === 'code') {
+      setBusy(true);
+      try {
+        const result = await verifySecondFactor(password, code);
+        if (result.ok) {
+          setPassword('');
+          setCode('');
+          onSuccess();
+          return;
+        }
+        registerFail(
+          result.reason === 'passphrase'
+            ? 'The passphrase could not open the enrolled authenticator. Sign in again.'
+            : 'That authenticator code is not valid for this window.',
+        );
+        setCode('');
+        if (result.reason === 'passphrase') {
+          setStage('password');
+          setPassword('');
+          passwordRef.current?.focus();
+        } else {
+          codeRef.current?.focus();
+        }
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
     setBusy(true);
     try {
       const result = await verifyCredentials(username, password);
       if (result.ok) {
+        if (twoFactorEnrolled()) {
+          setStage('code');
+          setCode('');
+          setBusy(false);
+          window.setTimeout(() => codeRef.current?.focus(), 30);
+          return;
+        }
         setPassword('');
         onSuccess();
         return;
       }
-      const { fails: nextFails, lockedUntil } = registerFailure();
-      setFails(nextFails);
-      setLockMs(Math.max(0, lockedUntil - Date.now()));
-      setPassword('');
-      setError(
+      registerFail(
         result.reason === 'unsupported'
           ? 'This browser cannot run the secure hashing check. Open the panel over https or on localhost.'
           : 'Those credentials are not valid.',
       );
+      setPassword('');
       passwordRef.current?.focus();
     } finally {
       setBusy(false);
@@ -95,14 +141,37 @@ export default function AdminLogin({ onSuccess }) {
         <div className="rounded-[10px] border border-line bg-ink-850/90 p-5 shadow-[0_40px_90px_-60px_rgba(0,0,0,1)] backdrop-blur-md sm:p-6">
           <div className="flex items-center gap-2">
             <Lock className="h-4 w-4 text-pulse" strokeWidth={2} />
-            <h2 className="text-[14px] font-bold text-bone">Sign in to continue</h2>
+            <h2 className="text-[14px] font-bold text-bone">
+              {stage === 'code' ? 'Two-factor check' : 'Sign in to continue'}
+            </h2>
           </div>
           <p className="mt-1.5 text-[11.5px] leading-relaxed text-muted">
-            Credentials are verified in this browser against a PBKDF2 digest — the password itself is
-            never stored.
+            {stage === 'code'
+              ? 'Enter the current 6-digit code from your authenticator. The secret stays sealed with your passphrase.'
+              : 'Credentials are verified in this browser against a PBKDF2 digest — the password itself is never stored.'}
           </p>
 
           <form onSubmit={submit} className="mt-4 space-y-3" noValidate>
+            {stage === 'code' ? (
+              <Field label="Authenticator code" htmlFor="admin-code" hint="Codes rotate every 30 seconds.">
+                <TextInput
+                  ref={codeRef}
+                  id="admin-code"
+                  name="one-time-code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  value={code}
+                  onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000"
+                  className="text-center font-mono text-[18px] tracking-[0.4em]"
+                  disabled={locked || busy}
+                  required
+                />
+              </Field>
+            ) : (
+              <>
             <Field label="Editorial ID" htmlFor="admin-username">
               <div className="relative">
                 <User
@@ -156,6 +225,8 @@ export default function AdminLogin({ onSuccess }) {
                 </button>
               </div>
             </Field>
+              </>
+            )}
 
             {error ? (
               <p role="alert" className="flex items-start gap-1.5 text-[11.5px] font-medium text-pulse-400">
@@ -175,17 +246,38 @@ export default function AdminLogin({ onSuccess }) {
               type="submit"
               variant="primary"
               className="w-full"
-              disabled={locked || busy || !cryptoReady || !username || !password}
+              disabled={
+                locked ||
+                busy ||
+                !cryptoReady ||
+                (stage === 'code' ? code.length !== 6 : !username || !password)
+              }
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-              {busy ? 'Verifying…' : 'Unlock control room'}
+              {busy ? 'Verifying…' : stage === 'code' ? 'Verify code' : 'Unlock control room'}
             </Button>
+
+            {stage === 'code' ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setStage('password');
+                  setCode('');
+                  setPassword('');
+                  setError('');
+                  window.setTimeout(() => passwordRef.current?.focus(), 30);
+                }}
+                className="w-full text-[10.5px] font-semibold text-muted transition-colors hover:text-bone"
+              >
+                Start again with the passphrase
+              </button>
+            ) : null}
           </form>
 
           <div className="mt-4 space-y-1.5 border-t border-line pt-3 text-[10.5px] leading-relaxed text-muted/80">
             <p className="flex items-center gap-1.5">
               <ShieldCheck className="h-3 w-3 shrink-0 text-pulse/80" />
-              {WAIT_STEPS.length}-step back-off, 20-minute idle sessions.
+              {WAIT_STEPS.length}-step back-off, 20-minute idle sessions, optional TOTP second factor.
             </p>
             {fails > 0 && !locked ? (
               <p className="text-pulse-400/90">

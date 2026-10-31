@@ -30,6 +30,15 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
 export const subscribe = dbSubscribe;
 export const getVersion = dbVersion;
 
+/* A revision that only changes when the rendered story set actually changes —
+ * telemetry or agent queue writes must not remount the public pages. */
+let contentRevision = 0;
+let contentSignature = '';
+const signatureOf = (list) =>
+  list.map((story) => `${story.id}:${story.slug}:${story.updatedAt || story.publishedAt}:${story.status}`).join('|');
+
+export const getContentRevision = () => contentRevision;
+
 /* ---------------------------------------------------------------- mutation */
 
 export const savePost = (post) => {
@@ -223,6 +232,11 @@ export function applyContent() {
   next.sort(newestFirst);
   STORIES.length = 0;
   STORIES.push(...next);
+  const signature = signatureOf(next);
+  if (signature !== contentSignature) {
+    contentSignature = signature;
+    contentRevision += 1;
+  }
   return next;
 }
 

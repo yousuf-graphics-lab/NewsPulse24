@@ -293,7 +293,9 @@ export function Progress({ value, max = 100, tone = 'red', className = '' }) {
             ? 'bg-gradient-to-r from-pulse/55 to-pulse'
             : tone === 'green'
               ? 'bg-gradient-to-r from-emerald-500/50 to-emerald-400'
-              : 'bg-gradient-to-r from-[#4A4C58] to-[#6A6C78]',
+              : tone === 'amber'
+                ? 'bg-gradient-to-r from-amber-500/50 to-amber-400'
+                : 'bg-gradient-to-r from-[#4A4C58] to-[#6A6C78]',
         )}
         style={{ width: `${pct}%` }}
       />

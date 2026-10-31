@@ -19,6 +19,15 @@
  * database — see "Admin panel" in the README.
  */
 
+import {
+  generateSecret,
+  newSalt,
+  openSecret,
+  otpauthUri,
+  sealSecret,
+  verifyTotp,
+} from './totp';
+
 const PW_ITERATIONS = 310_000;
 const PW_PEPPER = 'newspulse24:admin:';
 const PW_SALT = '42548568006d1b68146fe180e1294876';
@@ -29,6 +38,9 @@ const USER_HASH = '2b9242d6fb41583790a02eb53517480d951dfeda74bf550af155de3c7e9d1
 const SESSION_KEY = 'newspulse24:admin:session';
 const GUARD_KEY = 'newspulse24:admin:guard';
 const CRED_KEY = 'newspulse24:admin:credentials';
+const TWOFA_KEY = 'newspulse24:admin:2fa';
+const SIGNAL_CHANNEL = 'newspulse24:admin:signal';
+const PENDING_KEY = 'newspulse24:admin:2fa:pending';
 
 export const SESSION_IDLE_MS = 20 * 60 * 1000;
 export const SESSION_MAX_MS = 8 * 60 * 60 * 1000;
@@ -158,11 +170,32 @@ export const verifyCredentials = async (username, password) => {
   return { ok: true };
 };
 
+/** Re-checks a passphrase without touching the session — used to gate risky actions. */
+export const verifyPassword = async (password) => {
+  if (!isCryptoAvailable()) return false;
+  const source = activePasswordSource();
+  const candidate = await pbkdf2Hex(String(password || ''), source.salt, source.iterations);
+  return timingSafeEqual(candidate, source.hash);
+};
+
 export const changePassword = async (currentPassword, nextPassword) => {
   if (!isCryptoAvailable()) return { ok: false, reason: 'unsupported' };
   const source = activePasswordSource();
   const currentHash = await pbkdf2Hex(String(currentPassword || ''), source.salt, source.iterations);
   if (!timingSafeEqual(currentHash, source.hash)) return { ok: false, reason: 'invalid' };
+
+  // The TOTP secret is sealed with the passphrase: re-seal it, or 2FA dies with
+  // the rotation. Requires the old passphrase, which the caller has just proved.
+  let resealed = null;
+  const sealed = readTwoFactor();
+  if (sealed) {
+    try {
+      const secret = await openSecret(String(currentPassword), sealed);
+      resealed = await sealSecret(String(nextPassword), secret, newSalt());
+    } catch {
+      return { ok: false, reason: 'two-factor' };
+    }
+  }
 
   const salt = toHex(window.crypto.getRandomValues(new Uint8Array(16)));
   const hash = await pbkdf2Hex(String(nextPassword), salt, PW_ITERATIONS);
@@ -171,12 +204,134 @@ export const changePassword = async (currentPassword, nextPassword) => {
     CRED_KEY,
     JSON.stringify({ salt, hash, iterations: PW_ITERATIONS, updatedAt: new Date().toISOString() }),
   );
-  return saved ? { ok: true } : { ok: false, reason: 'storage' };
+  if (!saved) return { ok: false, reason: 'storage' };
+  if (resealed) safeSet(window.localStorage, TWOFA_KEY, JSON.stringify(resealed));
+  return { ok: true, resealed: !!resealed };
 };
 
 export const resetPasswordToDefault = () => {
   if (!canUseStorage()) return;
   safeRemove(window.localStorage, CRED_KEY);
+  // Without the passphrase the sealed 2FA secret is unrecoverable, so the
+  // authenticator enrolment is cleared with the reset.
+  safeRemove(window.localStorage, TWOFA_KEY);
+  safeRemove(window.sessionStorage, PENDING_KEY);
+};
+
+/* --------------------------------------------------------------- two-factor */
+
+export const twoFactorAvailable = () =>
+  typeof window !== 'undefined' && !!window.crypto?.subtle;
+
+const readTwoFactor = () => {
+  if (!canUseStorage()) return null;
+  const raw = safeGet(window.localStorage, TWOFA_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed?.cipher && parsed?.salt && parsed?.iv ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+export const twoFactorEnrolled = () => !!readTwoFactor();
+
+export const twoFactorEnrolledAt = () => {
+  try {
+    return JSON.parse(safeGet(window.localStorage, TWOFA_KEY) || '{}').createdAt || null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Step one of enrolment: prove the passphrase, then hand back a fresh secret
+ * and its otpauth URI. Nothing is stored until a code has been verified.
+ */
+export const startTwoFactorEnrolment = async (password) => {
+  if (!isCryptoAvailable()) return { ok: false, reason: 'unsupported' };
+  if (!(await verifyPassword(password))) return { ok: false, reason: 'invalid' };
+  const secret = generateSecret();
+  const salt = newSalt();
+  safeSet(
+    window.sessionStorage,
+    PENDING_KEY,
+    JSON.stringify({ secret, salt, createdAt: Date.now() }),
+  );
+  return { ok: true, secret, uri: otpauthUri({ secret }) };
+};
+
+export const pendingTwoFactor = () => {
+  try {
+    const parsed = JSON.parse(safeGet(window.sessionStorage, PENDING_KEY) || 'null');
+    if (!parsed?.secret) return null;
+    if (Date.now() - parsed.createdAt > 15 * 60_000) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+export const confirmTwoFactor = async (password, code) => {
+  const pending = pendingTwoFactor();
+  if (!pending) return { ok: false, reason: 'expired' };
+  if (!(await verifyPassword(password))) return { ok: false, reason: 'invalid' };
+  if (!(await verifyTotp(pending.secret, code))) return { ok: false, reason: 'code' };
+  const sealed = await sealSecret(String(password), pending.secret, pending.salt);
+  const saved = safeSet(
+    window.localStorage,
+    TWOFA_KEY,
+    JSON.stringify({ ...sealed, createdAt: new Date().toISOString() }),
+  );
+  safeRemove(window.sessionStorage, PENDING_KEY);
+  return saved ? { ok: true } : { ok: false, reason: 'storage' };
+};
+
+/** Second step of sign-in: passphrase opens the secret, the code proves possession. */
+export const verifySecondFactor = async (password, code) => {
+  const sealed = readTwoFactor();
+  if (!sealed) return { ok: true, skipped: true };
+  try {
+    const secret = await openSecret(String(password), sealed);
+    if (!(await verifyTotp(secret, code))) return { ok: false, reason: 'code' };
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'passphrase' };
+  }
+};
+
+export const disableTwoFactor = async (password) => {
+  if (!(await verifyPassword(password))) return { ok: false, reason: 'invalid' };
+  safeRemove(window.localStorage, TWOFA_KEY);
+  safeRemove(window.sessionStorage, PENDING_KEY);
+  return { ok: true };
+};
+
+/* ------------------------------------------------------------------- signals */
+
+const TAB_ID = `tab-${Math.random().toString(36).slice(2, 10)}`;
+
+/** Tells every other open control-room tab to drop its session. */
+export const broadcastSignOut = () => {
+  try {
+    if (typeof BroadcastChannel === 'undefined') return;
+    const channel = new BroadcastChannel(SIGNAL_CHANNEL);
+    channel.postMessage({ type: 'sign-out', from: TAB_ID, at: Date.now() });
+    channel.close();
+  } catch {
+    /* no channel support — sessions still expire on their own */
+  }
+};
+
+export const onRemoteSignOut = (handler) => {
+  if (typeof BroadcastChannel === 'undefined') return () => {};
+  const channel = new BroadcastChannel(SIGNAL_CHANNEL);
+  channel.onmessage = (event) => {
+    // Other channels in this same document also receive the message — ignore ours.
+    if (event.data?.type === 'sign-out' && event.data.from !== TAB_ID) handler();
+  };
+  return () => channel.close();
 };
 
 /* -------------------------------------------------------------------- guard */

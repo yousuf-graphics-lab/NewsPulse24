@@ -229,8 +229,8 @@ export default function AdminShell({
               <span className="text-[8.5px] font-bold uppercase tracking-[0.12em] text-emerald-400/85">
                 System optimal
               </span>
-              <span className="text-[9px] text-[#3F414C]">·</span>
-              <span className="font-mono text-[9px] text-[#6F7180]">NODE_DC_EAST</span>
+              <span className="hidden text-[9px] text-[#3F414C] 2xl:inline">·</span>
+              <span className="hidden font-mono text-[9px] text-[#6F7180] 2xl:inline">NODE_DC_EAST</span>
             </div>
 
             <form
@@ -256,12 +256,12 @@ export default function AdminShell({
             </form>
 
             <div className="ml-auto flex items-center gap-2 md:ml-0">
-              <div className="hidden items-center gap-1.5 rounded-[4px] border border-[#3A1E22] bg-[#150E11] px-2 py-[3px] lg:flex">
+              <div className="hidden min-w-0 items-center gap-1.5 rounded-[4px] border border-[#3A1E22] bg-[#150E11] px-2 py-[3px] xl:flex">
                 <Radio className="h-3 w-3 text-pulse" />
                 <span className="text-[8.5px] font-bold uppercase tracking-[0.14em] text-pulse">
                   Ticker live
                 </span>
-                <span className="max-w-[190px] truncate text-[9.5px] text-[#B9BAC6]">
+                <span className="max-w-[150px] truncate text-[9.5px] text-[#B9BAC6] 2xl:max-w-[200px]">
                   {preview || 'The wire is quiet — publish a story'}
                 </span>
               </div>

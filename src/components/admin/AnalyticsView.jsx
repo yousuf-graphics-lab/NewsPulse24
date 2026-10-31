@@ -17,7 +17,7 @@ import {
   formatNumber,
   sectionPerformance,
 } from '../../lib/telemetry';
-import { storageReport } from '../../lib/db';
+import { DB_KEY, storageReport } from '../../lib/db';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const HOURS = Array.from({ length: 24 }, (_, index) => index);
@@ -217,7 +217,7 @@ export default function AnalyticsView({ version, range, setRange }) {
               <span className="font-mono text-bone/70">{formatNumber(storage.events)} / 6,000</span>
             </div>
             <p className="mt-1.5 text-[9px] leading-snug text-[#4F5160]">
-              Stored in this browser under <span className="font-mono">newspulse24:db:v2</span>. Export a
+              Stored in this browser under <span className="font-mono">{DB_KEY}</span>. Export a
               backup from Settings before clearing site data.
             </p>
           </div>

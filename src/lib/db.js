@@ -11,13 +11,14 @@
  *  - JSON export / import for backup and transfer between browsers
  *  - a change feed the whole app subscribes to
  *
- * SCHEMA (v2)
- *   posts[]     full story documents written in the control room
- *   hidden[]    base story ids taken down
- *   settings    heroPins, tickerPins, override, livePromo, autoRebalance, desks
- *   reads       { [slug]: { count, events: ISO[] } }  — real article opens
- *   staff[]     desk assignments for the staff directory
- *   audit[]     append-only command log
+ * SCHEMA (v3)
+ *   posts[]      full story documents written in the control room
+ *   hidden[]     base story ids taken down
+ *   settings     heroPins, tickerPins, override, livePromo, autoRebalance, desks
+ *   reads        { [slug]: { count, events: ISO[] } }  — real article opens
+ *   staff[]      desk assignments for the staff directory
+ *   audit[]      append-only command log
+ *   automation   wire agent: sources, queue, rules, run log and counters
  *
  * This is deliberately a *local* database: it is the durable store for this
  * browser. `exportDatabase()` produces the exact JSON a hosted Postgres would
@@ -25,8 +26,9 @@
  */
 import { AUTHORS, STORIES } from '../data/news';
 
-export const DB_KEY = 'newspulse24:db:v2';
-export const DB_VERSION = 2;
+export const DB_KEY = 'newspulse24:db:v3';
+const PREVIOUS_KEY = 'newspulse24:db:v2';
+export const DB_VERSION = 3;
 const LEGACY_CONTENT = 'newspulse24:content:v1';
 const LEGACY_READS = 'newspulse24:reads:v1';
 const LEGACY_AUDIT = 'newspulse24:admin:audit';
@@ -67,6 +69,79 @@ const staffSeed = () =>
 
 const hasWindow = () => typeof window !== 'undefined' && !!window.localStorage;
 
+const MAX_QUEUE = 60;
+const MAX_SEEN = 400;
+const MAX_AGENT_LOG = 80;
+
+const defaultAutomation = () => ({
+  enabled: false,
+  mode: 'approval',
+  intervalMinutes: 20,
+  maxPerHour: 3,
+  minScore: 45,
+  proxy: '/api/wire?url={url}',
+  useSourceImages: false,
+  sections: ['World', 'Business', 'Technology', 'Science', 'Health', 'Sports', 'Entertainment', 'Opinion', 'Lifestyle'],
+  sources: [],
+  queue: [],
+  seen: [],
+  log: [],
+  stats: { runs: 0, ingested: 0, published: 0, rejected: 0, lastRunAt: null },
+  lastRunAt: null,
+});
+
+const asNumber = (value, fallback, min, max) => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, number));
+};
+
+const normaliseAutomation = (raw) => {
+  const base = defaultAutomation();
+  if (!raw || typeof raw !== 'object') return base;
+  const stats = raw.stats && typeof raw.stats === 'object' ? raw.stats : {};
+  return {
+    ...base,
+    enabled: raw.enabled === true,
+    mode: raw.mode === 'auto' ? 'auto' : 'approval',
+    intervalMinutes: asNumber(raw.intervalMinutes, base.intervalMinutes, 5, 720),
+    maxPerHour: asNumber(raw.maxPerHour, base.maxPerHour, 1, 20),
+    minScore: asNumber(raw.minScore, base.minScore, 0, 100),
+    proxy: typeof raw.proxy === 'string' ? raw.proxy.slice(0, 300) : base.proxy,
+    useSourceImages: raw.useSourceImages === true,
+    sections: asArray(raw.sections).filter((item) => typeof item === 'string').slice(0, 12),
+    sources: asArray(raw.sources)
+      .filter((source) => source && typeof source.url === 'string' && source.url)
+      .map((source) => ({
+        id: String(source.id || source.url),
+        name: String(source.name || 'Untitled feed').slice(0, 60),
+        url: String(source.url).slice(0, 500),
+        section: typeof source.section === 'string' ? source.section : '',
+        weight: asNumber(source.weight, 1, 0, 3),
+        enabled: source.enabled !== false,
+        lastFetchedAt: source.lastFetchedAt || null,
+        lastStatus: typeof source.lastStatus === 'string' ? source.lastStatus.slice(0, 120) : '',
+        lastCount: asNumber(source.lastCount, 0, 0, 500),
+      }))
+      .slice(0, 30),
+    queue: asArray(raw.queue)
+      .filter((item) => item && item.id && item.draft && item.draft.title)
+      .slice(0, MAX_QUEUE),
+    seen: asArray(raw.seen).filter((item) => typeof item === 'string').slice(0, MAX_SEEN),
+    log: asArray(raw.log)
+      .filter((entry) => entry && entry.message)
+      .slice(0, MAX_AGENT_LOG),
+    stats: {
+      runs: asNumber(stats.runs, 0, 0, 1e9),
+      ingested: asNumber(stats.ingested, 0, 0, 1e9),
+      published: asNumber(stats.published, 0, 0, 1e9),
+      rejected: asNumber(stats.rejected, 0, 0, 1e9),
+      lastRunAt: stats.lastRunAt || null,
+    },
+    lastRunAt: raw.lastRunAt || null,
+  };
+};
+
 const emptyState = () => ({
   version: DB_VERSION,
   posts: [],
@@ -83,6 +158,7 @@ const emptyState = () => ({
   reads: {},
   staff: staffSeed(),
   audit: [],
+  automation: defaultAutomation(),
   createdAt: new Date().toISOString(),
   updatedAt: null,
 });
@@ -120,6 +196,7 @@ const normalise = (raw) => {
     reads,
     staff: raw.staff === undefined ? staffSeed() : asArray(raw.staff),
     audit: asArray(raw.audit).slice(0, MAX_AUDIT),
+    automation: normaliseAutomation(raw.automation),
     createdAt: raw.createdAt || base.createdAt,
     updatedAt: raw.updatedAt || null,
   };
@@ -172,7 +249,17 @@ const load = () => {
     const raw = window.localStorage.getItem(DB_KEY);
     if (raw) return normalise(JSON.parse(raw));
   } catch {
-    /* corrupt payload — fall through to a clean database */
+    /* corrupt payload — fall through to the previous schema */
+  }
+  try {
+    const previous = window.localStorage.getItem(PREVIOUS_KEY);
+    if (previous) {
+      const upgraded = normalise(JSON.parse(previous));
+      persist(upgraded);
+      return upgraded;
+    }
+  } catch {
+    /* unreadable v2 document — continue with the legacy migration */
   }
   const migrated = migrateLegacy();
   if (migrated) {

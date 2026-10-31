@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { MotionConfig } from 'framer-motion';
 import { Route, Routes, useLocation } from 'react-router-dom';
-import { getVersion, subscribe } from './lib/contentStore';
+import { getContentRevision, subscribe } from './lib/contentStore';
+import { startAutomationLoop } from './lib/automation';
 import SiteHeader from './components/SiteHeader';
 import BreakingOverrideBar from './components/BreakingOverrideBar';
 import SiteFooter from './components/SiteFooter';
@@ -68,10 +69,14 @@ function RouteTransition({ children }) {
 
 export default function App() {
   const { pathname } = useLocation();
-  const [contentVersion, setContentVersion] = useState(() => getVersion());
+  const [contentVersion, setContentVersion] = useState(() => getContentRevision());
 
   /* Repaint the public site whenever the editorial database changes. */
-  useEffect(() => subscribe(() => setContentVersion(getVersion())), []);
+  useEffect(() => subscribe(() => setContentVersion(getContentRevision())), []);
+
+  /* The wire agent runs in this browser while a tab is open and the agent is
+   * enabled — including on the public site, so an unattended tab keeps filing. */
+  useEffect(() => startAutomationLoop(), []);
 
   return (
     <MotionConfig reducedMotion="user" transition={{ duration: DUR.base, ease: EASE }}>

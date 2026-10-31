@@ -218,11 +218,24 @@ weight:
 a left rail, a live telemetry dashboard and a working story editor. Everything it shows is derived
 from the story dataset or from article opens recorded in this browser, and modelled figures say so.
 
+The panel has **no entry point on the public site** — no footer link, no menu item, no shortcut. It
+is reached by navigating to `/admin` directly, and it is `noindex` (meta tag, `robots.txt` and an
+`X-Robots-Tag` header) so it never turns up in search.
+
 **Sign in** with the editorial ID and passphrase issued for the newsroom. The credential is verified
 in the browser — the password is only ever a PBKDF2-SHA-256 digest (310 000 iterations, salted and
 peppered), never plaintext, and comparisons are constant-time. Five bad attempts lock the form with
 exponential back-off; sessions live in `sessionStorage` with a 256-bit token, a 20-minute idle
 window and an 8-hour ceiling.
+
+**Second factor (optional, recommended).** `Security & access` enrols a TOTP authenticator
+(RFC 6238, 30-second step, ±1 window, WebCrypto only). The base32 secret is sealed with AES-GCM-256
+under a PBKDF2-SHA-256 key derived from your passphrase (150 000 iterations) and stored as
+`{salt, iv, cipher}`; the pending secret expires after 15 minutes. Once enrolled, the sign-in form
+asks for the passphrase *and* the current 6-digit code, and the passphrase cannot be rotated without
+it. Sessions also broadcast a sign-out over `BroadcastChannel`, so signing out in one tab closes the
+console in every other tab, and the panel can optionally lock itself when the tab is hidden for more
+than two minutes.
 
 | Panel | Capability |
 | --- | --- |
@@ -232,16 +245,53 @@ window and an 8-hour ceiling.
 | Live TV & breaking | Site-wide breaking override bar (headline, kicker, tone, target story), live-rail promotion, ticker rundown and pinning |
 | Analytics & heatmaps | Readership heatmap (hour × weekday), desk performance table with share, story leaderboard by reads/minute, storage report |
 | Staff & permissions | Roster seeded from the newsroom directory, add / edit / suspend / remove seats, access tiers, shift coverage across the 24-hour cycle |
+| Wire agent | Always-on ingest: source feeds, publishing mode, cadence and caps, section allow-list, per-source trust, a review queue with expandable drafts and a run log |
 | Settings | Hero and ticker pins in order, auto-rebalance, desk weights that bias the automatic selectors, JSON backup export / import, destructive resets |
-| Security & access | Session details, passphrase rotation with a strength meter, brute-force guard, security trail |
+| Security & access | Security posture checklist, passphrase rotation with a strength meter, TOTP second-factor enrolment, lock-on-tab-hide, session details, brute-force guard, sign-out everywhere, security trail |
+
+### The wire agent
+
+`src/lib/automation.js` is the always-on half of the newsroom. It runs inside the app (first tick
+4 s after load, then every 30 s, honouring whatever cadence the operator set) and can be started by
+hand from **Wire agent → Run now**.
+
+1. **Collect** — pulls the enabled public RSS / Atom / JSON feeds from `AUTOMATION_PRESETS`
+   (BBC World, Reuters-style agency feeds, Guardian, Al Jazeera, TechCrunch, ESPN, Hacker News and
+   more), plus any feed the operator adds. Requests go through `api/wire.js`, a serverless proxy
+   that only speaks http(s), refuses private and link-local addresses, caps the response at 1.5 MB,
+   times out after 12 s and only passes XML or JSON back with `s-maxage=300`.
+2. **Filter** — drops anything under 18 characters of headline or 80 characters of summary, dedupes
+   by URL hash against the last 400 seen items, and scores each candidate 0–100 on freshness,
+   summary depth, section confidence and source trust. Anything under the operator's floor is
+   discarded.
+3. **Compose** — derives the headline and standfirst, an extractive body (paragraphs, a subheading
+   and a key-points list from what the source published, always closed with a link back to the
+   original), a section from keyword scoring, tags from entities in the copy, a lead image from the
+   newsroom library (or the source's own image when enabled), and SEO title/description length-capped
+   to 60 / 155 characters. Every draft carries `attribution { name, url, host, automated: true }`.
+4. **Publish** — in **Approval** mode drafts wait in the queue for *Publish* or *Reject*; in
+   **Auto-publish** mode they go live immediately, still rate-limited to N stories per hour.
+
+There is no language model in this bundle, so the copy is extractive and attributed — the agent
+never invents prose and never claims to. Everything is switchable from the panel: master switch,
+publishing mode, cadence, hourly cap, score floor, section allow-list, per-source enable/trust,
+source-image use, proxy URL, plus per-item edit, reject and remove. A wire story on the public site
+shows a **Wire report** strip naming the original outlet and linking to it (`rel="noreferrer nofollow"`).
+
+Like the rest of the panel, the agent runs in the browser: it works while any tab is open. An
+always-on newsroom wants the same `automation.js` running on a server cron with a shared database —
+the module is framework-free and takes a fetch implementation, so it drops in front of
+`api/wire.js` unchanged.
 
 ### The database
 
-`src/lib/db.js` is a small versioned document store over `localStorage` (`newspulse24:db:v2`,
-schema v2):
+`src/lib/db.js` is a small versioned document store over `localStorage` (`newspulse24:db:v3`,
+schema v3):
 
-- collections for `posts`, `hidden` takedowns, `settings`, `reads`, `staff` and `audit`;
-- forward migration from the v1 keys (`newspulse24:content:v1`, `reads:v1`, `admin:audit`);
+- collections for `posts`, `hidden` takedowns, `settings`, `reads`, `staff`, `audit` and the
+  `automation` state (sources, queue, seen hashes, log, stats);
+- forward migration from the v2 and v1 keys (`newspulse24:db:v2`, `newspulse24:content:v1`,
+  `reads:v1`, `admin:audit`) the first time the app loads;
 - one atomic write per mutation with quota-aware errors returned to the editor;
 - a change feed the app subscribes to, plus cross-tab `storage` sync;
 - read telemetry capped at 400 events per story and 6 000 in total, audit at 200 rows;

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Activity,
+  Bot,
   Gauge,
   LayoutGrid,
   Plus,
@@ -21,14 +22,18 @@ import AnalyticsView from '../components/admin/AnalyticsView';
 import StaffView from '../components/admin/StaffView';
 import SettingsView from '../components/admin/SettingsView';
 import SecurityView from '../components/admin/SecurityView';
+import WireAutomation from '../components/admin/WireAutomation';
 import { Button, MicroLabel, Tag } from '../components/admin/ui';
 import { useApp } from '../context/AppContext';
 import {
+  broadcastSignOut,
   createSession,
   endSession,
+  onRemoteSignOut,
   readSession,
   touchSession,
 } from '../lib/adminAuth';
+import { LOCK_ON_HIDE_AFTER_MS, lockOnHideEnabled } from '../components/admin/securityPrefs';
 import {
   allPosts,
   getSettings,
@@ -38,12 +43,14 @@ import {
   updateSettings,
 } from '../lib/contentStore';
 import { logEvent, read as readDb, storageReport } from '../lib/db';
+import { markQueuePublished, queueCounts } from '../lib/automation';
 import { buildDashboard } from '../lib/telemetry';
 
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: Gauge },
   { id: 'ledger', label: 'Newsroom ledger', icon: LayoutGrid },
   { id: 'drafting', label: 'Drafting room', icon: Plus },
+  { id: 'wire', label: 'Wire agent', icon: Bot },
   { id: 'live', label: 'Live TV & breaking', icon: Tv },
   { id: 'analytics', label: 'Analytics & heatmaps', icon: Activity },
   { id: 'staff', label: 'Staff & permissions', icon: Users },
@@ -67,6 +74,12 @@ const META = {
     title: 'Drafting room',
     eyebrow: 'Compose',
     subtitle: 'Write, illustrate and publish to the live site. Drafts stay local until you publish.',
+  },
+  wire: {
+    title: 'Wire agent',
+    eyebrow: 'Automation',
+    subtitle:
+      'A standing agent that reads public feeds, assembles attributed stories with section, tags, SEO and an image, then either queues them for you or publishes on your rules.',
   },
   live: {
     title: 'Live TV & breaking',
@@ -142,6 +155,38 @@ export default function AdminPage() {
 
   const notify = useCallback((message, tone = 'default') => pushToast(message, tone), [pushToast]);
 
+  /* Signing out in one tab closes the rest. */
+  useEffect(
+    () =>
+      onRemoteSignOut(() => {
+        setSession(null);
+        setEditing(null);
+        pushToast('Signed out from another tab.');
+      }),
+    [pushToast],
+  );
+
+  /* Optional: leaving the tab for two minutes locks the session. */
+  useEffect(() => {
+    let hiddenAt = 0;
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now();
+        return;
+      }
+      const away = hiddenAt ? Date.now() - hiddenAt : 0;
+      hiddenAt = 0;
+      if (!session || !lockOnHideEnabled() || away < LOCK_ON_HIDE_AFTER_MS) return;
+      endSession();
+      setSession(null);
+      setEditing(null);
+      pushToast('Locked after two minutes away — enter the passphrase again.');
+      logEvent('security', 'Session auto-locked', 'Tab hidden for more than two minutes');
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [pushToast, session]);
+
   const goTab = useCallback(
     (next) => {
       setEditing(null);
@@ -158,8 +203,9 @@ export default function AdminPage() {
   };
 
   const signOut = () => {
-    logEvent('security', 'Signed out');
+    logEvent('security', 'Signed out', 'Session ended by the operator');
     endSession();
+    broadcastSignOut();
     setSession(null);
     setEditing(null);
     notify('Signed out of mission control');
@@ -204,6 +250,16 @@ export default function AdminPage() {
   const settings = getSettings();
   const ticker = useMemo(() => getTickerStories(), [version]);
   const storage = useMemo(() => storageReport(), [version]);
+  const wireCounts = useMemo(() => queueCounts(), [version]);
+  const nav = useMemo(
+    () =>
+      NAV.map((item) =>
+        item.id === 'wire' && wireCounts.pending
+          ? { ...item, badge: String(wireCounts.pending) }
+          : item,
+      ),
+    [wireCounts.pending],
+  );
   const dash = useMemo(() => buildDashboard(range), [range, version]);
   const date = new Date(clock);
   const statusLine = {
@@ -211,7 +267,7 @@ export default function AdminPage() {
       .toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' })
       .toUpperCase()} ${date.getUTCFullYear()} · ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())} UTC`,
     latency: `${storage.kb.toFixed(1)} kB · ${dash.kpis.stories} stories`,
-    build: `DB v2 · ${settings.autoSync === false ? 'SYNC PAUSED' : 'AUTOSYNC 5S'} · LOCAL NODE`,
+    build: `DB v3 · ${settings.autoSync === false ? 'SYNC PAUSED' : 'AUTOSYNC 5S'} · LOCAL NODE`,
   };
 
   const seo = (
@@ -251,7 +307,7 @@ export default function AdminPage() {
     <>
       {seo}
       <AdminShell
-        nav={NAV}
+        nav={nav}
         activeTab={tab}
         onNavigate={(next) => goTab(next)}
         title={meta.title}
@@ -300,11 +356,28 @@ export default function AdminPage() {
             notify={notify}
             onDone={(status, record) => {
               if (status && record) {
-                setEditing({ post: { ...record, isBase: editing?.post?.isBase } });
+                if (editing?.queueId && status === 'published') {
+                  markQueuePublished(editing.queueId, record.slug);
+                }
+                setEditing({
+                  post: { ...record, isBase: editing?.post?.isBase },
+                  queueId: editing?.queueId,
+                });
               } else if (status === null) {
                 setEditing(null);
                 setParams({ tab: 'ledger' });
               }
+            }}
+          />
+        ) : null}
+
+        {tab === 'wire' ? (
+          <WireAutomation
+            version={version}
+            notify={notify}
+            onEditDraft={(draft, queueId) => {
+              setEditing({ post: draft, queueId });
+              setParams({ tab: 'drafting' });
             }}
           />
         ) : null}
