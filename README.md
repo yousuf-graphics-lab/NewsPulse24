@@ -205,11 +205,6 @@ weight:
   Sydney Opera House, Statue of Liberty, Empire State and more) plus a generated low horizon, all
   inlined SVG with a mask-cut arch arcade. The band bleeds a red horizon glow behind the
   silhouettes and closes on the red rule above the legal bar.
-- **Masthead treatment** — the globe hangs inside two tilted orbits with a satellite dot that
-  circles it, a red floor glow and a lit `Pulse` glow; the Morning Pulse form sits in a glass card
-  with a red hairline and corner bloom; Watch Live carries the red action weight. Below it, a
-  bureaux strip lists all six desks with lit pins and an "all desks filing" indicator. Under `lg`
-  the whole lockup centres itself instead of leaving a dead right-hand column.
 - **Working controls** — the Morning Pulse field validates, stores the address and confirms inline;
   Watch Live and Newsletters open the broadcast and membership dialogs; section links deep-link the
   homepage filters; Privacy, Terms and Cookie links land on real policy sections at `/about`.

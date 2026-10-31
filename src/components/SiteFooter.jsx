@@ -40,14 +40,12 @@ function XIcon({ className = '' }) {
   );
 }
 
-const BUREAUX = ['London', 'New York', 'São Paulo', 'Lagos', 'Dubai', 'Singapore'];
-
 const SOCIALS = [
-  { label: 'NewsPulse 24 on YouTube', href: 'https://www.youtube.com/', Icon: Youtube, brand: 'text-[#FF2A38]' },
+  { label: 'NewsPulse 24 on YouTube', href: 'https://www.youtube.com/', Icon: Youtube, brand: 'text-[#FF2E3E]' },
   { label: 'NewsPulse 24 on X', href: 'https://x.com/', Icon: XIcon, brand: 'text-bone' },
-  { label: 'NewsPulse 24 on Facebook', href: 'https://www.facebook.com/', Icon: Facebook, brand: 'text-[#8FB4FF]' },
-  { label: 'NewsPulse 24 on LinkedIn', href: 'https://www.linkedin.com/', Icon: Linkedin, brand: 'text-[#93B7F0]' },
-  { label: 'NewsPulse 24 on Instagram', href: 'https://www.instagram.com/', Icon: Instagram, brand: 'text-[#F0A0D8]' },
+  { label: 'NewsPulse 24 on Facebook', href: 'https://www.facebook.com/', Icon: Facebook, brand: 'text-[#4C8DF6]' },
+  { label: 'NewsPulse 24 on LinkedIn', href: 'https://www.linkedin.com/', Icon: Linkedin, brand: 'text-[#3C9BF5]' },
+  { label: 'NewsPulse 24 on Instagram', href: 'https://www.instagram.com/', Icon: Instagram, brand: 'text-[#F0459B]' },
 ];
 
 function FooterHeading({ children }) {
@@ -73,7 +71,7 @@ function FooterLink({ to, onClick, children }) {
     </>
   );
   const className =
-    'group flex w-full items-center gap-2.5 py-[6px] text-left text-[12.5px] leading-snug text-bone/70 transition-colors hover:text-bone sm:text-[13px]';
+    'group flex w-full items-center gap-2 py-[6px] text-left text-[12.5px] leading-snug text-bone/70 transition-colors hover:text-bone xl:gap-2.5 xl:text-[13px]';
 
   return (
     <li>
@@ -130,74 +128,52 @@ export default function SiteFooter() {
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="absolute -left-16 top-0 h-full w-[44%] -skew-x-[16deg] bg-white/[0.022]" />
           <div className="absolute -right-10 top-0 h-full w-[34%] -skew-x-[16deg] bg-white/[0.014]" />
-          <div className="absolute inset-x-0 bottom-0 h-32 bg-[radial-gradient(58%_130%_at_50%_125%,rgba(255,16,36,0.16),transparent_74%)]" />
-          <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-ink-900 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-ink-900 to-transparent" />
         </div>
 
         <div className="container-news relative py-10 lg:py-12">
-          <div className="flex flex-col items-center gap-8 text-center lg:flex-row lg:items-center lg:gap-0 lg:text-left">
+          <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:gap-0">
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:gap-6 lg:contents">
             {/* rotating globe emblem */}
             <div className="shrink-0 lg:pr-8 xl:pr-10">
-              <div className="relative h-[112px] w-[112px] sm:h-[132px] sm:w-[132px] xl:h-[158px] xl:w-[158px]">
+              <div className="relative h-[96px] w-[96px] sm:h-[112px] sm:w-[112px] lg:h-[136px] lg:w-[136px] xl:h-[152px] xl:w-[152px]">
                 <span
                   aria-hidden="true"
-                  className="absolute inset-[-18%] rounded-full bg-[radial-gradient(circle,rgba(255,16,36,0.34),transparent_64%)]"
-                />
-                <span
-                  aria-hidden="true"
-                  className="absolute inset-x-[-18%] inset-y-[40%] -rotate-[14deg] rounded-[50%] border border-pulse/35"
-                />
-                <span
-                  aria-hidden="true"
-                  className="absolute inset-x-[-9%] inset-y-[31%] rotate-[22deg] rounded-[50%] border border-white/[0.09]"
+                  className="absolute inset-[-16%] rounded-full bg-[radial-gradient(circle,rgba(255,16,36,0.32),transparent_66%)]"
                 />
                 <GlobeMark className="relative h-full w-full" spin />
-                {/* orbiting satellite */}
-                <motion.span
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-[-18%] rounded-full"
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 24, repeat: Infinity, ease: 'linear' }}
-                >
-                  <span className="absolute left-1/2 top-0 h-[5px] w-[5px] -translate-x-1/2 rounded-full bg-pulse shadow-[0_0_10px_rgba(255,16,36,0.95)]" />
-                </motion.span>
                 <span
                   aria-hidden="true"
-                  className="absolute -bottom-1.5 left-1/2 h-3.5 w-[62%] -translate-x-1/2 rounded-[50%] bg-pulse/30 blur-md"
+                  className="absolute -inset-x-[14%] inset-y-[38%] -rotate-[14deg] rounded-[50%] border border-pulse/30"
                 />
               </div>
             </div>
 
-            {/* wordmark + description + actions */}
-            <div className="min-w-0 lg:flex-1 lg:border-l lg:border-line-soft lg:px-8 xl:px-10">
-              <span className="mb-3 inline-flex items-center gap-1.5 rounded-[3px] border border-pulse/25 bg-pulse/[0.09] px-2 py-[3px] text-[8.5px] font-bold uppercase tracking-[0.2em] text-pulse-400">
-                <span className="h-1 w-1 animate-pulseDot rounded-full bg-pulse" />
-                The Global Desk
-              </span>
-
-              <Link to="/" aria-label="NewsPulse 24 — home" className="group block">
-                <span className="heading-xl block whitespace-nowrap text-[30px] leading-[0.95] drop-shadow-[0_2px_16px_rgba(0,0,0,0.75)] xs:text-[36px] sm:text-[42px] xl:text-[50px]">
+            {/* wordmark + description */}
+            <div className="min-w-0 flex-1 lg:border-l lg:border-line-soft lg:px-8 xl:px-10">
+              <Link to="/" aria-label="NewsPulse 24 — home" className="group inline-block">
+                <span className="heading-xl block whitespace-nowrap text-[30px] leading-[0.95] drop-shadow-[0_2px_14px_rgba(0,0,0,0.7)] xs:text-[36px] sm:text-[42px] xl:text-[50px]">
                   <span className="text-white">News</span>
-                  <span className="text-pulse drop-shadow-[0_0_22px_rgba(255,16,36,0.45)]">Pulse</span>
+                  <span className="text-pulse">Pulse</span>
                   <span className="ml-[0.18em] text-pulse">24</span>
                 </span>
-                <span className="mt-2.5 block whitespace-nowrap text-[9px] font-semibold uppercase leading-none tracking-[0.28em] text-muted xs:text-[10.5px] sm:text-[12px] sm:tracking-[0.3em] xl:text-[13.5px]">
+                <span className="mt-2.5 block whitespace-nowrap text-[9px] font-semibold uppercase leading-none tracking-[0.28em] text-muted xs:text-[10.5px] sm:text-[12px] xl:text-[13.5px] sm:tracking-[0.3em]">
                   Real News. Global Impact.
                 </span>
               </Link>
 
-              <p className="mx-auto mt-4 max-w-[460px] text-[12.5px] leading-[1.75] text-muted sm:text-[13.5px] lg:mx-0">
+              <p className="mt-4 max-w-[440px] text-[12px] leading-[1.7] text-muted sm:text-[13.5px]">
                 Independent international reporting, live broadcast and data-led analysis from six
                 newsrooms across four continents.
               </p>
 
-              <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5 lg:justify-start">
+              <div className="mt-4 flex flex-wrap items-center gap-2.5">
                 <button
                   type="button"
                   onClick={() => openModal('live')}
-                  className="group flex h-10 items-center gap-2 rounded-[7px] border border-pulse/40 bg-pulse/[0.13] px-4 text-[12px] font-semibold text-white transition-all duration-200 hover:border-pulse/70 hover:bg-pulse/[0.2] hover:shadow-[0_10px_26px_-16px_rgba(255,16,36,0.95)]"
+                  className="group flex h-10 items-center gap-2 rounded-[7px] border border-line-soft bg-gradient-to-b from-ink-750 to-ink-850 px-4 text-[12px] font-semibold text-bone/90 transition-colors hover:border-pulse/60 hover:text-white"
                 >
-                  <span className="grid h-[18px] w-[18px] place-items-center rounded-full bg-pulse shadow-[0_0_10px_rgba(255,16,36,0.8)] transition-transform duration-200 group-hover:scale-110">
+                  <span className="grid h-[18px] w-[18px] place-items-center rounded-full bg-pulse transition-transform duration-200 group-hover:scale-110">
                     <Play className="ml-[1px] h-2.5 w-2.5 fill-white text-white" />
                   </span>
                   Watch Live
@@ -212,133 +188,98 @@ export default function SiteFooter() {
                 </button>
               </div>
             </div>
-
-            {/* The Morning Pulse capture card */}
-            <div className="w-full max-w-[540px] lg:w-[45%] lg:max-w-none lg:border-l lg:border-line-soft lg:pl-8 xl:pl-10">
-              <div className="relative overflow-hidden rounded-[10px] border border-line-soft bg-[linear-gradient(158deg,rgba(22,23,30,0.94),rgba(9,10,14,0.9))] p-5 text-left shadow-[0_30px_70px_-44px_rgba(0,0,0,1)] backdrop-blur-md">
-                <span
-                  aria-hidden="true"
-                  className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-pulse/80 to-transparent"
-                />
-                <span
-                  aria-hidden="true"
-                  className="pointer-events-none absolute -right-14 -top-16 h-40 w-40 rounded-full bg-pulse/[0.14] blur-2xl"
-                />
-
-                <div className="relative">
-                  <div className="flex items-center gap-3">
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[7px] border border-pulse/30 bg-pulse/[0.12]">
-                      <Mail aria-hidden="true" className="h-4 w-4 text-pulse" strokeWidth={1.9} />
-                    </span>
-                    <div className="min-w-0">
-                      <h2 className="text-[15px] font-extrabold uppercase leading-none tracking-[0.07em] text-bone sm:text-[16.5px]">
-                        The Morning Pulse
-                      </h2>
-                      <p className="mt-1.5 text-[11.5px] leading-tight text-muted">
-                        Start your day with the latest global news.
-                      </p>
-                    </div>
-                  </div>
-
-                  <AnimatePresence mode="wait" initial={false}>
-                    {joined ? (
-                      <motion.div
-                        key="joined"
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -6 }}
-                        transition={{ duration: 0.28, ease: EASE }}
-                        className="mt-4 flex h-[50px] items-center gap-2.5 rounded-[7px] border border-pulse/35 bg-pulse/[0.09] px-3.5"
-                        role="status"
-                      >
-                        <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-pulse">
-                          <Check className="h-3 w-3 text-white" strokeWidth={3.5} />
-                        </span>
-                        <p className="text-[12px] leading-snug text-bone/90">
-                          You’re on the list — tomorrow’s briefing lands at 06:00.
-                        </p>
-                      </motion.div>
-                    ) : (
-                      <motion.form
-                        key="form"
-                        onSubmit={join}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -6 }}
-                        transition={{ duration: 0.28, ease: EASE }}
-                        className="mt-4"
-                        noValidate
-                      >
-                        <div className="flex flex-col gap-2 sm:flex-row">
-                          <div className="relative min-w-0 flex-1">
-                            <label htmlFor="footer-newsletter-email" className="sr-only">
-                              Email address for The Morning Pulse
-                            </label>
-                            <Mail
-                              aria-hidden="true"
-                              className="pointer-events-none absolute left-3.5 top-1/2 h-[15px] w-[15px] -translate-y-1/2 text-muted/80"
-                              strokeWidth={1.8}
-                            />
-                            <input
-                              id="footer-newsletter-email"
-                              type="email"
-                              inputMode="email"
-                              autoComplete="email"
-                              value={email}
-                              onChange={(e) => {
-                                setEmail(e.target.value);
-                                if (error) setError('');
-                              }}
-                              placeholder="Enter your email address"
-                              aria-invalid={error ? 'true' : 'false'}
-                              aria-describedby={error ? 'footer-newsletter-error' : undefined}
-                              className="h-[50px] w-full rounded-[7px] border border-line-soft bg-ink-950/70 pl-10 pr-3 text-[12.5px] text-bone placeholder:text-muted/70 transition-colors hover:border-[#34353f] focus:border-pulse/70 focus:bg-ink-950/90 focus:outline-none focus:ring-2 focus:ring-pulse/20"
-                            />
-                          </div>
-                          <button type="submit" className="btn-red group h-[50px] shrink-0 rounded-[7px] px-5 text-[12.5px]">
-                            Subscribe
-                            <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-[2px]" />
-                          </button>
-                        </div>
-                        {error ? (
-                          <p
-                            id="footer-newsletter-error"
-                            role="alert"
-                            className="mt-1.5 text-[11px] font-medium text-pulse-400"
-                          >
-                            {error}
-                          </p>
-                        ) : null}
-                      </motion.form>
-                    )}
-                  </AnimatePresence>
-
-                  <p className="mt-3 flex items-center gap-2 text-[11px] text-muted">
-                    <ShieldCheck aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-pulse" strokeWidth={2.2} />
-                    No spam. Unsubscribe anytime.
-                  </p>
-                </div>
-              </div>
             </div>
-          </div>
 
-          {/* bureaux strip */}
-          <div className="mt-9 flex flex-col items-center gap-3 border-t border-line/80 pt-5 text-[10px] uppercase tracking-[0.16em] text-muted/75 sm:flex-row sm:justify-between">
-            <ul className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-              {BUREAUX.map((city) => (
-                <li key={city} className="flex items-center gap-1.5">
-                  <span
-                    aria-hidden="true"
-                    className="h-1 w-1 rounded-full bg-pulse shadow-[0_0_6px_rgba(255,16,36,0.9)]"
-                  />
-                  {city}
-                </li>
-              ))}
-            </ul>
-            <p className="flex items-center gap-2 text-pulse/85">
-              <span aria-hidden="true" className="h-1.5 w-1.5 animate-pulseDot rounded-full bg-pulse" />
-              All desks filing
-            </p>
+            {/* newsletter */}
+            <div className="w-full lg:w-[46%] lg:max-w-[580px] lg:border-l lg:border-line-soft lg:pl-8 xl:pl-10">
+              <div className="flex items-center gap-3">
+                <Mail aria-hidden="true" className="h-[26px] w-[26px] shrink-0 text-pulse sm:h-[30px] sm:w-[30px]" strokeWidth={1.6} />
+                <h2 className="text-[17px] font-extrabold uppercase leading-none tracking-[0.06em] text-bone sm:text-[21px]">
+                  The Morning Pulse
+                </h2>
+              </div>
+              <p className="mt-2.5 text-[12px] leading-relaxed text-muted sm:text-[12.5px]">
+                Start your day with the latest global news.
+              </p>
+
+              <AnimatePresence mode="wait" initial={false}>
+                {joined ? (
+                  <motion.div
+                    key="joined"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.28, ease: EASE }}
+                    className="mt-4 flex h-[52px] items-center gap-2.5 rounded-[8px] border border-pulse/35 bg-pulse/[0.08] px-3.5"
+                    role="status"
+                  >
+                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-pulse">
+                      <Check className="h-3 w-3 text-white" strokeWidth={3.5} />
+                    </span>
+                    <p className="text-[12px] leading-snug text-bone/90">
+                      You’re on the list — tomorrow’s briefing lands at 06:00.
+                    </p>
+                  </motion.div>
+                ) : (
+                  <motion.form
+                    key="form"
+                    onSubmit={join}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.28, ease: EASE }}
+                    className="mt-4"
+                    noValidate
+                  >
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <div className="relative min-w-0 flex-1">
+                        <label htmlFor="footer-newsletter-email" className="sr-only">
+                          Email address for The Morning Pulse
+                        </label>
+                        <Mail
+                          aria-hidden="true"
+                          className="pointer-events-none absolute left-3.5 top-1/2 h-[15px] w-[15px] -translate-y-1/2 text-muted/80"
+                          strokeWidth={1.8}
+                        />
+                        <input
+                          id="footer-newsletter-email"
+                          type="email"
+                          inputMode="email"
+                          autoComplete="email"
+                          value={email}
+                          onChange={(e) => {
+                            setEmail(e.target.value);
+                            if (error) setError('');
+                          }}
+                          placeholder="Enter your email address"
+                          aria-invalid={error ? 'true' : 'false'}
+                          aria-describedby={error ? 'footer-newsletter-error' : undefined}
+                          className="h-[52px] w-full rounded-[8px] border border-line-soft bg-ink-800/80 pl-10 pr-3 text-[12.5px] text-bone placeholder:text-muted/70 transition-colors hover:border-[#333440] focus:border-pulse/70 focus:outline-none focus:ring-2 focus:ring-pulse/20"
+                        />
+                      </div>
+                      <button type="submit" className="btn-red group h-[52px] shrink-0 rounded-[8px] px-6 text-[13px]">
+                        Subscribe
+                        <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-[2px]" />
+                      </button>
+                    </div>
+                    {error ? (
+                      <p
+                        id="footer-newsletter-error"
+                        role="alert"
+                        className="mt-1.5 text-[11px] font-medium text-pulse-400"
+                      >
+                        {error}
+                      </p>
+                    ) : null}
+                  </motion.form>
+                )}
+              </AnimatePresence>
+
+              <p className="mt-3 flex items-center gap-2 text-[11px] text-muted">
+                <ShieldCheck aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-pulse" strokeWidth={2.2} />
+                No spam. Unsubscribe anytime.
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -377,7 +318,7 @@ export default function SiteFooter() {
               <FooterHeading>
                 <span id="footer-newsroom">The Newsroom</span>
               </FooterHeading>
-              <div className="mt-3.5 grid grid-cols-2 gap-x-4">
+              <div className="mt-3.5 grid gap-x-4 md:grid-cols-2">
                 <ul>
                   {NEWSROOM.slice(0, 3).map(([label, to]) => (
                     <FooterLink key={label} to={to}>
