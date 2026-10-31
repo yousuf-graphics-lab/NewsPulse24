@@ -4,6 +4,7 @@ import { Search as SearchIcon, Sparkles, X } from 'lucide-react';
 import { STORIES, searchStories } from '../data/news';
 import NewsGrid from '../components/NewsGrid';
 import TrendingNowPanel from '../components/TrendingNowPanel';
+import Seo from '../components/Seo';
 
 const SUGGESTIONS = ['Artificial intelligence', 'Markets', 'Mars', 'Climate', 'Football', 'Quantum'];
 
@@ -27,6 +28,25 @@ export default function SearchPage() {
 
   return (
     <main id="main" className="container-news py-5">
+      <Seo
+        title={q ? `Search results for “${q}”` : 'Search the newsroom'}
+        description={
+          q
+            ? `${results.length} NewsPulse 24 stories matching “${q}”, including headlines, analysis, reporters and topics.`
+            : 'Search NewsPulse 24 across headlines, sections, reporters and topics.'
+        }
+        path={q ? `/search?q=${encodeURIComponent(q)}` : '/search'}
+        keywords={['news search', q].filter(Boolean)}
+        noindex
+        jsonLd={[
+          {
+            '@context': 'https://schema.org',
+            '@type': 'SearchResultsPage',
+            name: q ? `Search results for ${q}` : 'Search the newsroom',
+            about: q || undefined,
+          },
+        ]}
+      />
       <div className="mb-4">
         <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-pulse">
           NewsPulse Search

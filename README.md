@@ -8,6 +8,40 @@ vivid red accents, information-dense editorial grid, rotating globe brand mark).
 
 ![homepage](public/images/hero-earth.jpg)
 
+## SEO & discoverability
+
+The build ships crawlable HTML, not an empty SPA shell.
+
+- **Static prerendering** — `npm run build` renders every route with React SSR
+  (`scripts/ssr-entry.jsx`) and writes real documents: `dist/index.html`,
+  `dist/article/<slug>/index.html` (one per story), `latest/`, `live/`, `about/`
+  and `404.html`. Article prose, headlines and bylines are in the HTML before any
+  JavaScript runs.
+- **Per-route `<head>`** via `react-helmet-async` (`src/components/Seo.jsx`): unique
+  title, meta description, keywords, canonical URL, robots directives
+  (`max-image-preview:large`), Open Graph, Twitter/X card, `article:*` metadata and
+  an LCP image preload.
+- **Structured data** — a single `@graph` with `NewsMediaOrganization`, `WebSite`
+  (+ `SearchAction`), `NewsArticle` (headline, images, dates, author, publisher,
+  word count, section, keywords), `BreadcrumbList`, plus `ItemList`,
+  `CollectionPage`, `BroadcastService` and `AboutPage` where relevant — the shapes
+  Google uses for Top Stories, article rich results and breadcrumbs.
+- **Social cards** — `scripts/generate-assets.mjs` generates a branded 1200×630
+  `og-image.jpg` **and one card per story** (`public/og/<slug>.jpg`) with the
+  category kicker, headline, byline and article artwork.
+- **Discovery files** — `sitemap.xml` with Google News + image extensions (generated
+  from the dataset), `feed.xml` (RSS 2.0 for aggregators), `robots.txt`, and a PWA
+  `site.webmanifest` with the organization logo.
+- **Hosting** — `vercel.json` (clean URLs, prerender rewrites, cache headers) and
+  `public/_redirects` for Netlify, so deep links resolve to the prerendered pages.
+
+Set your production origin once and every canonical, share URL and sitemap entry
+follows:
+
+```bash
+VITE_SITE_URL=https://your-domain.com npm run build
+```
+
 ## Stack
 
 - **React 18 + Vite 5**
@@ -25,9 +59,12 @@ vivid red accents, information-dense editorial grid, rotating globe brand mark).
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm run build      # production bundle in dist/
+npm run build      # assets → bundle → SSR prerender → sitemap/feed/robots
 npm run preview    # serve the production build on :4173
 ```
+
+Individual build steps: `build:assets`, `build:ssr`, `build:prerender`, `build:seo`,
+`build:land` (regenerates the globe's land polygons).
 
 The dev and preview servers bind to `0.0.0.0` so the app can be opened through a proxied
 preview host.
@@ -80,13 +117,14 @@ and related-story links all read from that same source — no card markup is dup
 
 ```
 src/
-├── components/      # SiteHeader, BrandLogo, GlobeMark, SearchBar, UserActions, PrimaryNavigation,
+├── components/      # Seo, SiteHeader, BrandLogo, GlobeMark, SearchBar, UserActions, PrimaryNavigation,
 │                    # MobileNavigation, BreakingNewsTicker, HeroCarousel, TopStoriesSidebar,
 │                    # SectionHeading, CategoryFilters, NewsGrid, NewsCard, LiveTVPanel,
 │                    # TrendingNowPanel, SubscribeModal, SignInModal, LiveTVModal, SiteFooter…
 ├── context/         # AppContext — modals, search, menu, notifications, bookmarks, toasts
 ├── data/news.js     # single editorial dataset + helpers (search, related, formatting)
 │   data/worldLand.js# generated Natural Earth land polygons for the globe mark
+├── config/site.js   # canonical origin, SEO defaults, JSON-LD builders
 ├── pages/           # HomePage, ArticlePage, SearchPage, LatestPage, LivePage, AboutPage, 404
 └── index.css        # design tokens, panel/blur/glow utilities, article typography
 ```

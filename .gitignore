@@ -26,3 +26,9 @@ yarn-error.log*
 
 # preview artefacts
 .preview-*
+
+# prerender output
+dist-ssr
+
+# generated social cards (rebuilt by npm run build)
+public/og

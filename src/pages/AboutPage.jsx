@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Globe2, ShieldCheck, Users } from 'lucide-react';
 import BrandLogo from '../components/BrandLogo';
+import Seo from '../components/Seo';
 
 const PILLARS = [
   {
@@ -23,6 +24,20 @@ const PILLARS = [
 export default function AboutPage() {
   return (
     <main id="main" className="container-news py-6">
+      <Seo
+        title="About the newsroom and editorial standards"
+        description="How NewsPulse 24 reports: verification before velocity, six bureaux filing into one rundown, and reader-funded independence. Read our editorial standards and corrections policy."
+        path="/about"
+        keywords={['about NewsPulse 24', 'editorial standards', 'corrections policy', 'newsroom']}
+        jsonLd={[
+          {
+            '@context': 'https://schema.org',
+            '@type': 'AboutPage',
+            name: 'About NewsPulse 24',
+            mainEntity: { '@id': 'https://newspulse24.com/#organization' },
+          },
+        ]}
+      />
       <Link
         to="/"
         className="mb-4 inline-flex items-center gap-1.5 text-[11px] font-semibold text-pulse transition-colors hover:text-white"

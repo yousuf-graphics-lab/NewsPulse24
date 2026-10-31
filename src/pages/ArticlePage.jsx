@@ -22,6 +22,8 @@ import { useApp } from '../context/AppContext';
 import NewsCard from '../components/NewsCard';
 import SectionHeading from '../components/SectionHeading';
 import NotFoundPage from './NotFoundPage';
+import Seo from '../components/Seo';
+import { articleJsonLd, breadcrumbJsonLd } from '../config/site';
 
 export default function ArticlePage() {
   const { slug } = useParams();
@@ -50,6 +52,12 @@ export default function ArticlePage() {
   const related = useMemo(() => (story ? relatedStories(story, 3) : []), [story]);
 
   if (!story) return <NotFoundPage />;
+
+  const bodyText = story.body
+    .map((block) =>
+      block.type === 'list' ? block.items.join(' ') : block.type === 'quote' ? block.text : block.text,
+    )
+    .join(' ');
 
   const saved = isBookmarked(story.id);
   const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
@@ -89,6 +97,28 @@ export default function ArticlePage() {
 
   return (
     <main id="main" className="container-news py-4">
+      <Seo
+        title={story.title}
+        description={story.excerpt}
+        path={`/article/${story.slug}`}
+        image={`/og/${story.slug}.jpg`}
+        imageAlt={story.imageAlt}
+        type="article"
+        keywords={story.tags}
+        author={story.author.name}
+        section={story.category}
+        publishedTime={story.publishedAt}
+        modifiedTime={story.publishedAt}
+        preloadImage={story.image}
+        jsonLd={[
+          articleJsonLd(story, { section: story.category, body: bodyText }),
+          breadcrumbJsonLd([
+            { name: 'Home', href: '/' },
+            { name: story.category, href: `/?category=${encodeURIComponent(story.category)}` },
+            { name: story.title, href: `/article/${story.slug}` },
+          ]),
+        ]}
+      />
       {/* reading progress */}
       <div className="fixed inset-x-0 top-0 z-50 h-[2px] bg-transparent">
         <div

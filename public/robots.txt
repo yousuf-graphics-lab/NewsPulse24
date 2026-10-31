@@ -1,0 +1,14 @@
+# NewsPulse 24 — https://newspulse24.com
+User-agent: *
+Allow: /
+Disallow: /search
+Disallow: /*?q=
+
+# Crawl-friendly for news aggregators
+User-agent: Googlebot-News
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+Sitemap: https://newspulse24.com/sitemap.xml

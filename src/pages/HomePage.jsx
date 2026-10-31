@@ -17,6 +17,8 @@ import {
   storiesByCategory,
 } from '../data/news';
 import { useApp } from '../context/AppContext';
+import Seo from '../components/Seo';
+import { absoluteUrl, SITE } from '../config/site';
 
 const FILTERS = ['All', 'World', 'Business', 'Technology', 'Sports', 'Entertainment', 'Health', 'Science'];
 
@@ -65,6 +67,31 @@ export default function HomePage() {
 
   return (
     <main id="main">
+      <Seo
+        title={category === 'All' ? undefined : `${category} News`}
+        description={
+          category === 'All'
+            ? SITE.description
+            : `The latest ${category.toLowerCase()} reporting from NewsPulse 24 — breaking stories, live updates and analysis from six bureaux worldwide.`
+        }
+        path={category === 'All' ? '/' : `/?category=${encodeURIComponent(category)}`}
+        image="/og-image.jpg"
+        imageAlt="NewsPulse 24 — real news, global impact"
+        keywords={[category === 'All' ? 'top stories' : `${category.toLowerCase()} news`]}
+        jsonLd={[
+          {
+            '@context': 'https://schema.org',
+            '@type': 'ItemList',
+            name: category === 'All' ? 'Latest news' : `${category} news`,
+            itemListElement: latest.slice(0, 8).map((story, i) => ({
+              '@type': 'ListItem',
+              position: i + 1,
+              url: absoluteUrl(`/article/${story.slug}`),
+              name: story.title,
+            })),
+          },
+        ]}
+      />
       <div className="container-news pt-3 sm:pt-4">
         {/* ---------- HERO + TOP STORIES ---------- */}
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_326px]">

@@ -1,12 +1,19 @@
 import { Link } from 'react-router-dom';
 import { Compass, Home } from 'lucide-react';
 import { STORIES } from '../data/news';
+import Seo from '../components/Seo';
 
 export default function NotFoundPage() {
   const suggestions = [...STORIES].sort((a, b) => b.views - a.views).slice(0, 3);
 
   return (
     <main id="main" className="container-news py-14">
+      <Seo
+        title="Page not found"
+        description="This page has moved or never existed. Browse the latest NewsPulse 24 reporting instead."
+        path="/404"
+        noindex
+      />
       <div className="mx-auto max-w-xl text-center">
         <span className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-pulse/30 bg-pulse/10">
           <Compass className="h-6 w-6 text-pulse" />

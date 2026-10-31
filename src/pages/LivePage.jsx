@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Clock3, Radio, Signal, Tv, Users } from 'lucide-react';
 import { HERO_STORIES, formatRelativeTime } from '../data/news';
 import { useApp } from '../context/AppContext';
+import Seo from '../components/Seo';
 
 const SCHEDULE = [
   { time: '06:00', show: 'First Edition', desk: 'London', dur: '60 min' },
@@ -17,6 +18,25 @@ export default function LivePage() {
 
   return (
     <main id="main" className="container-news py-5">
+      <Seo
+        title="Live TV and broadcast schedule"
+        description="Watch NewsPulse 24 live: rolling news coverage, market updates and analysis from our London, New York, São Paulo, Lagos, Dubai and Singapore studios."
+        path="/live"
+        image="/images/live-studio.jpg"
+        imageAlt="NewsPulse 24 live broadcast studio"
+        keywords={['live news', 'news live stream', 'broadcast schedule', 'watch news online']}
+        jsonLd={[
+          {
+            '@context': 'https://schema.org',
+            '@type': 'BroadcastService',
+            name: 'NewsPulse 24 Live',
+            broadcastDisplayName: 'NewsPulse 24 Live',
+            broadcaster: { '@id': 'https://newspulse24.com/#organization' },
+            inLanguage: 'en',
+            areaServed: 'Worldwide',
+          },
+        ]}
+      />
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <span className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.2em] text-pulse">

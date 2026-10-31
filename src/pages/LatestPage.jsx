@@ -5,6 +5,8 @@ import { STORIES, formatCompactViews, formatRelativeTime, storiesByCategory } fr
 import CategoryFilters from '../components/CategoryFilters';
 import NewsGrid from '../components/NewsGrid';
 import LiveTVPanel from '../components/LiveTVPanel';
+import Seo from '../components/Seo';
+import { absoluteUrl } from '../config/site';
 
 const SORTS = [
   { id: 'newest', label: 'Newest first' },
@@ -28,6 +30,25 @@ export default function LatestPage() {
 
   return (
     <main id="main" className="container-news py-5">
+      <Seo
+        title={category === 'All' ? 'All stories — the full newsroom archive' : `${category} archive`}
+        description={`Browse every ${category === 'All' ? '' : `${category.toLowerCase()} `}dispatch from NewsPulse 24, ordered by publication time and sortable by what the world is reading.`}
+        path="/latest"
+        keywords={['news archive', category === 'All' ? 'all stories' : `${category.toLowerCase()} news`]}
+        jsonLd={[
+          {
+            '@context': 'https://schema.org',
+            '@type': 'CollectionPage',
+            name: 'NewsPulse 24 archive',
+            hasPart: stories.slice(0, 10).map((s) => ({
+              '@type': 'NewsArticle',
+              headline: s.title,
+              url: absoluteUrl(`/article/${s.slug}`),
+              datePublished: s.publishedAt,
+            })),
+          },
+        ]}
+      />
       <div className="mb-4">
         <nav aria-label="Breadcrumb" className="mb-2 flex items-center gap-1.5 text-[10.5px] text-muted">
           <Link to="/" className="hover:text-pulse">Home</Link>
