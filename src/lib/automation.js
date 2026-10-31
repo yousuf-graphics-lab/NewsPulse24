@@ -447,7 +447,19 @@ const classify = (text, sourceSection) => {
   return { section: score > 0 ? section : 'World', confidence: Math.min(1, Number(score) / 4) };
 };
 
-const pickImage = (text, seed = '') => {
+const SECTION_IMAGE = {
+  World: 'hero-earth.jpg',
+  Business: 'markets.jpg',
+  Technology: 'ai-robot.jpg',
+  Science: 'rocket.jpg',
+  Health: 'medical.jpg',
+  Sports: 'football.jpg',
+  Entertainment: 'live-studio.jpg',
+  Lifestyle: 'live-studio.jpg',
+  Opinion: 'capitol.jpg',
+};
+
+const pickImage = (text, seed = '', section = '') => {
   const has = wordMatcher(text);
   let best = IMAGE_LIBRARY[0];
   let bestScore = 0;
@@ -459,10 +471,12 @@ const pickImage = (text, seed = '') => {
     }
   }
   if (bestScore === 0) {
-    // No keyword match: rotate through the library so the front page does not
-    // repeat one picture for every unmatched wire story.
+    // No keyword match: fall back to the desk's own picture, then rotate
+    // through the library so the front page does not repeat one image.
+    const deskFile = SECTION_IMAGE[section];
+    const byDesk = deskFile && IMAGE_LIBRARY.find((image) => image.file === deskFile);
     const index = parseInt(hash(seed), 36) % IMAGE_LIBRARY.length;
-    best = IMAGE_LIBRARY[index];
+    best = byDesk || IMAGE_LIBRARY[index];
   }
   return { path: `/images/${best.file}`, alt: best.alt, matched: bestScore > 0 };
 };
@@ -518,7 +532,7 @@ export const buildDraft = (item, source, { useSourceImages = false } = {}) => {
   if (summary.length < 80) return null;
 
   const { section, confidence } = classify(`${title} ${summary}`, source.section);
-  const image = pickImage(`${title} ${summary}`, item.url || title);
+  const image = pickImage(`${title} ${summary}`, item.url || title, section);
   const list = sentences(summary);
   const cleaned = list.length ? list : [summary];
   const lead = (cleaned[0] || summary).slice(0, 240);
