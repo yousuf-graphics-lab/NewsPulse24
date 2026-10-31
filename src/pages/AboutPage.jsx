@@ -66,7 +66,7 @@ export default function AboutPage() {
         <div className="grid gap-4 p-6 sm:grid-cols-3 sm:p-8">
           {PILLARS.map(({ icon: Icon, title, body }) => (
             <div key={title} className="rounded-[7px] border border-line bg-ink-800/60 p-4">
-              <span className="grid h-9 w-9 place-items-center rounded-[6px] bg-pulse/12 ring-1 ring-pulse/25">
+              <span className="grid h-9 w-9 place-items-center rounded-[6px] bg-pulse/[0.12] ring-1 ring-pulse/25">
                 <Icon className="h-4 w-4 text-pulse" />
               </span>
               <h2 className="mt-3 text-[13px] font-bold text-bone">{title}</h2>

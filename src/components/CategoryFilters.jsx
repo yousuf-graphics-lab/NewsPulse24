@@ -1,3 +1,6 @@
+import { motion } from 'framer-motion';
+import { EASE_IN_OUT } from '../lib/motion';
+
 const FILTERS = [
   'All',
   'World',
@@ -25,18 +28,28 @@ export default function CategoryFilters({ value, onChange, counts = {} }) {
             role="tab"
             aria-selected={active}
             onClick={() => onChange(filter)}
-            className={`shrink-0 rounded-full px-3 py-[5px] text-[11px] font-semibold transition-all duration-200 ${
+            className={`relative shrink-0 rounded-full px-3 py-[5px] text-[11px] font-semibold transition-colors duration-200 ${
               active
-                ? 'bg-pulse text-white shadow-[0_6px_18px_-8px_rgba(255,16,36,1)]'
+                ? 'text-white'
                 : 'border border-line bg-ink-800/80 text-bone/75 hover:border-pulse/50 hover:text-white'
             }`}
           >
-            {filter}
-            {counts[filter] != null && (
-              <span className={`ml-1.5 text-[9.5px] ${active ? 'text-white/70' : 'text-muted/70'}`}>
-                {counts[filter]}
-              </span>
+            {active && (
+              <motion.span
+                layoutId="filter-active-pill"
+                aria-hidden="true"
+                className="absolute inset-0 rounded-full bg-pulse shadow-[0_6px_18px_-8px_rgba(255,16,36,1)]"
+                transition={{ duration: 0.32, ease: EASE_IN_OUT }}
+              />
             )}
+            <span className="relative z-10">
+              {filter}
+              {counts[filter] != null && (
+                <span className={`ml-1.5 text-[9.5px] ${active ? 'text-white/70' : 'text-muted/70'}`}>
+                  {counts[filter]}
+                </span>
+              )}
+            </span>
           </button>
         );
       })}

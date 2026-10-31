@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { MotionConfig } from 'framer-motion';
 import { Route, Routes, useLocation } from 'react-router-dom';
 import SiteHeader from './components/SiteHeader';
 import SiteFooter from './components/SiteFooter';
@@ -13,6 +14,7 @@ import LatestPage from './pages/LatestPage';
 import LivePage from './pages/LivePage';
 import AboutPage from './pages/AboutPage';
 import NotFoundPage from './pages/NotFoundPage';
+import { DUR, EASE } from './lib/motion';
 
 function ScrollManager() {
   const { pathname } = useLocation();
@@ -22,8 +24,29 @@ function ScrollManager() {
   return null;
 }
 
+/**
+ * Fades the routed content in on navigation. Skipped on the very first paint so
+ * prerendered HTML is visible immediately (no flash of invisible content).
+ */
+function RouteTransition({ children }) {
+  const { pathname } = useLocation();
+  const [armed, setArmed] = useState(false);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setArmed(true), 60);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  return (
+    <div key={pathname} className={armed ? 'route-enter' : undefined}>
+      {children}
+    </div>
+  );
+}
+
 export default function App() {
   return (
+    <MotionConfig reducedMotion="user" transition={{ duration: DUR.base, ease: EASE }}>
     <>
       <a
         href="#main"
@@ -31,11 +54,13 @@ export default function App() {
       >
         Skip to main content
       </a>
+      <div aria-hidden="true" className="ambient-glow" />
       <ScrollManager />
-      <div className="flex min-h-screen flex-col">
+      <div className="relative z-10 flex min-h-screen flex-col">
         <SiteHeader />
         <div className="flex-1">
-          <Routes>
+          <RouteTransition>
+            <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/article/:slug" element={<ArticlePage />} />
             <Route path="/search" element={<SearchPage />} />
@@ -43,7 +68,8 @@ export default function App() {
             <Route path="/live" element={<LivePage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="*" element={<NotFoundPage />} />
-          </Routes>
+            </Routes>
+          </RouteTransition>
         </div>
         <SiteFooter />
       </div>
@@ -53,5 +79,6 @@ export default function App() {
       <LiveTVModal />
       <ToastHost />
     </>
+    </MotionConfig>
   );
 }

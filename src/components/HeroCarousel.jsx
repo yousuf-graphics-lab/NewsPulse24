@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRight, ChevronLeft, ChevronRight, Radio } from 'lucide-react';
+import { EASE, EASE_SOFT } from '../lib/motion';
 import { HERO_STORIES, formatRelativeTime } from '../data/news';
 import { useApp } from '../context/AppContext';
 
@@ -38,9 +39,9 @@ const fallbackLines = (title) => {
 };
 
 const textVariants = {
-  enter: { opacity: 0, y: 24, filter: 'blur(6px)' },
-  center: { opacity: 1, y: 0, filter: 'blur(0px)' },
-  exit: { opacity: 0, y: -14, filter: 'blur(4px)' },
+  enter: { opacity: 0, y: 18 },
+  center: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -10, transition: { duration: 0.18, ease: EASE_SOFT } },
 };
 
 export default function HeroCarousel() {
@@ -83,10 +84,14 @@ export default function HeroCarousel() {
       <AnimatePresence initial={false}>
         <motion.div
           key={story.id}
-          initial={{ opacity: 0, scale: 1.14, filter: 'blur(14px)' }}
-          animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-          exit={{ opacity: 0, scale: 1.06, filter: 'blur(6px)' }}
-          transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
+          initial={{ opacity: 0, scale: 1.07 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 1.02 }}
+          transition={{
+            opacity: { duration: 0.75, ease: EASE },
+            scale: { duration: 1.15, ease: EASE },
+          }}
+          style={{ willChange: 'opacity, transform' }}
           className="absolute inset-0"
         >
           <img
@@ -100,7 +105,7 @@ export default function HeroCarousel() {
       </AnimatePresence>
 
       {/* readability overlays */}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-ink-950 via-ink-950/88 to-ink-950/15" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-ink-950 via-ink-950/[0.88] to-ink-950/15" />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-ink-950/95 via-transparent to-ink-950/40" />
       <div className="pointer-events-none absolute inset-0 grid-lines opacity-40" />
 
@@ -108,10 +113,11 @@ export default function HeroCarousel() {
       <AnimatePresence>
         <motion.span
           key={`sweep-${progressKey}`}
-          initial={{ x: '-110%', opacity: 0.85 }}
-          animate={{ x: '115%', opacity: 0 }}
-          transition={{ duration: 1.05, ease: [0.3, 0.7, 0.2, 1] }}
-          className="pointer-events-none absolute inset-y-0 z-20 w-1/3 skew-x-[-14deg] bg-gradient-to-r from-transparent via-pulse/25 to-transparent blur-md"
+          initial={{ x: '-120%', opacity: 0.7 }}
+          animate={{ x: '120%', opacity: 0 }}
+          transition={{ duration: 1.1, ease: EASE_SOFT }}
+          style={{ willChange: 'transform, opacity' }}
+          className="pointer-events-none absolute inset-y-0 z-20 w-1/3 skew-x-[-12deg] bg-gradient-to-r from-transparent via-pulse/20 to-transparent"
         />
       </AnimatePresence>
 
@@ -136,14 +142,15 @@ export default function HeroCarousel() {
             animate="center"
             exit="exit"
             transition={{
-              duration: 0.55,
-              ease: [0.22, 1, 0.36, 1],
-              staggerChildren: 0.06,
-              staggerDirection: 1,
+              duration: 0.5,
+              ease: EASE,
+              staggerChildren: 0.055,
+              delayChildren: 0.05,
             }}
+            style={{ willChange: 'opacity, transform' }}
             className="w-full max-w-[560px]"
           >
-            <motion.div variants={textVariants} transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }} className="mb-3 flex flex-wrap items-center gap-2.5">
+            <motion.div variants={textVariants} transition={{ duration: 0.42, ease: EASE }} className="mb-3 flex flex-wrap items-center gap-2.5">
               <span className="inline-flex items-center gap-1.5 rounded-[3px] bg-pulse px-2.5 py-1 text-[9.5px] font-extrabold uppercase tracking-[0.16em] text-white shadow-[0_6px_20px_-8px_rgba(255,16,36,1)]">
                 <span className="h-1.5 w-1.5 animate-pulseDot rounded-full bg-white" />
                 {story.heroKicker || story.category}
@@ -157,7 +164,7 @@ export default function HeroCarousel() {
 
             <motion.h1
               variants={textVariants}
-              transition={{ duration: 0.6 }}
+              transition={{ duration: 0.52, ease: EASE }}
               className="heading-xl text-[30px] leading-[1.04] sm:text-[38px] sm:leading-[1.02] lg:text-[44px]"
             >
               {lines.map((line, i) => (
@@ -169,7 +176,7 @@ export default function HeroCarousel() {
 
             <motion.p
               variants={textVariants}
-              transition={{ duration: 0.55 }}
+              transition={{ duration: 0.48, ease: EASE }}
               className="mt-3.5 max-w-[430px] text-[12.5px] leading-relaxed text-bone/70 sm:text-[13.5px]"
             >
               {story.excerpt}
@@ -177,7 +184,7 @@ export default function HeroCarousel() {
 
             <motion.div
               variants={textVariants}
-              transition={{ duration: 0.55 }}
+              transition={{ duration: 0.48, ease: EASE }}
               className="mt-5 flex flex-wrap items-center gap-2.5"
             >
               <Link

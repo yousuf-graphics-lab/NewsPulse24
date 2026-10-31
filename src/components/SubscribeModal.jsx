@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Check, CreditCard, Mail, ShieldCheck, Sparkles } from 'lucide-react';
+import { EASE } from '../lib/motion';
 import Modal from './Modal';
 import { useApp } from '../context/AppContext';
 
@@ -68,8 +70,16 @@ export default function SubscribeModal() {
           </p>
         </div>
 
+        <AnimatePresence mode="wait" initial={false}>
         {done ? (
-          <div className="px-5 py-8 text-center sm:px-7">
+          <motion.div
+            key="done"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.28, ease: EASE }}
+            className="px-5 py-8 text-center sm:px-7"
+          >
             <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-pulse/15 ring-1 ring-pulse/40">
               <Check className="h-6 w-6 text-pulse" />
             </span>
@@ -82,9 +92,17 @@ export default function SubscribeModal() {
             <button type="button" onClick={closeModal} className="btn-red mt-5 h-10 px-6 text-[12.5px]">
               Continue reading
             </button>
-          </div>
+          </motion.div>
         ) : (
-          <form onSubmit={submit} className="px-5 py-4 sm:px-7 sm:py-5">
+          <motion.form
+            key="form"
+            onSubmit={submit}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.26, ease: EASE }}
+            className="px-5 py-4 sm:px-7 sm:py-5"
+          >
             <fieldset>
               <legend className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-muted">
                 Choose a plan
@@ -169,8 +187,9 @@ export default function SubscribeModal() {
               <ShieldCheck className="mt-[1px] h-3 w-3 shrink-0 text-pulse/80" />
               Demonstration checkout. No card details are collected, stored or charged.
             </p>
-          </form>
+          </motion.form>
         )}
+        </AnimatePresence>
       </div>
     </Modal>
   );

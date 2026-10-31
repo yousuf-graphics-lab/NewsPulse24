@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Bookmark, LogOut, Bell, Radio } from 'lucide-react';
+import { EASE } from '../lib/motion';
 import { useApp } from '../context/AppContext';
 import NotificationPanel from './NotificationPanel';
 
@@ -58,11 +60,20 @@ export default function UserActions({ compact = false }) {
             </span>
           )}
         </button>
-        {showBell && (
-          <div className="absolute right-0 top-[calc(100%+10px)] z-50">
-            <NotificationPanel onClose={() => setShowBell(false)} />
-          </div>
-        )}
+        <AnimatePresence>
+          {showBell && (
+            <motion.div
+              initial={{ opacity: 0, y: -8, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.99 }}
+              transition={{ duration: 0.2, ease: EASE }}
+              style={{ transformOrigin: 'top right' }}
+              className="absolute right-0 top-[calc(100%+10px)] z-50"
+            >
+              <NotificationPanel onClose={() => setShowBell(false)} />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {user ? (
@@ -81,8 +92,16 @@ export default function UserActions({ compact = false }) {
               {user.name}
             </span>
           </button>
+          <AnimatePresence>
           {showUser && (
-            <div className="absolute right-0 top-[calc(100%+10px)] z-50 w-[230px] overflow-hidden rounded-[8px] border border-line bg-ink-850/95 shadow-2xl backdrop-blur-xl">
+            <motion.div
+              initial={{ opacity: 0, y: -8, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.99 }}
+              transition={{ duration: 0.2, ease: EASE }}
+              style={{ transformOrigin: 'top right' }}
+              className="absolute right-0 top-[calc(100%+10px)] z-50 w-[230px] overflow-hidden rounded-[8px] border border-line bg-ink-850/95 shadow-2xl backdrop-blur-xl"
+            >
               <div className="border-b border-line px-4 py-3">
                 <p className="text-[12.5px] font-semibold text-bone">{user.name}</p>
                 <p className="truncate text-[11px] text-muted">{user.email}</p>
@@ -103,8 +122,9 @@ export default function UserActions({ compact = false }) {
               >
                 <LogOut className="h-3.5 w-3.5" /> Sign out
               </button>
-            </div>
+            </motion.div>
           )}
+          </AnimatePresence>
         </div>
       ) : (
         <button

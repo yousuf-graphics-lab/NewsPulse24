@@ -19,12 +19,13 @@ export default function NewsCard({ story, compact = false, showViews = false }) 
             src={story.image}
             alt={story.imageAlt}
             loading="lazy"
-            className="h-full w-full scale-[1.01] object-cover transition-transform duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.07]"
+            decoding="async"
+            className="h-full w-full scale-[1.01] object-cover transition-transform duration-[800ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06]"
             style={{ objectPosition: story.imagePosition }}
           />
         </div>
         <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-ink-950/85 via-ink-950/10 to-transparent" />
-        <span className="pointer-events-none absolute inset-0 bg-pulse/0 transition-colors duration-300 group-hover:bg-pulse/[0.07]" />
+        <span className="pointer-events-none absolute inset-0 bg-pulse/0 transition-colors duration-500 ease-out group-hover:bg-pulse/[0.06]" />
         {showViews && (
           <span className="absolute left-2 top-2 flex items-center gap-1 rounded-[3px] bg-black/65 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-bone/80 backdrop-blur-sm">
             <Flame className="h-2.5 w-2.5 text-pulse" />

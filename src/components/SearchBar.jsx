@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowUpRight, Search, X } from 'lucide-react';
+import { EASE } from '../lib/motion';
 import { formatRelativeTime, searchStories } from '../data/news';
 import { useApp } from '../context/AppContext';
 
@@ -104,10 +106,16 @@ export default function SearchBar({ variant = 'header' }) {
         )}
       </div>
 
+      <AnimatePresence>
       {showPanel && (
-        <div
+        <motion.div
           id="search-results"
           role="listbox"
+          initial={{ opacity: 0, y: -6, scale: 0.99 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -4, scale: 0.995 }}
+          transition={{ duration: 0.2, ease: EASE }}
+          style={{ transformOrigin: 'top center' }}
           className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-[8px] border border-line bg-ink-850/95 shadow-2xl backdrop-blur-xl"
         >
           <div className="flex items-center justify-between border-b border-line px-3.5 py-2">
@@ -169,8 +177,9 @@ export default function SearchBar({ variant = 'header' }) {
               View all results for “{query.trim()}” →
             </button>
           </div>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, Info, XCircle } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { EASE, EASE_SOFT } from '../lib/motion';
 
 const ICONS = {
   success: CheckCircle2,
@@ -22,10 +23,11 @@ export default function ToastHost() {
           return (
             <motion.div
               key={t.id}
-              initial={{ opacity: 0, y: 16, scale: 0.97 }}
+              initial={{ opacity: 0, y: 14, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.98 }}
-              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              exit={{ opacity: 0, y: 8, scale: 0.98, transition: { duration: 0.16, ease: EASE_SOFT } }}
+              transition={{ duration: 0.3, ease: EASE }}
+              layout
               className="pointer-events-auto flex w-full items-start gap-2.5 rounded-[6px] border border-line bg-ink-800/95 px-3 py-2.5 shadow-[0_24px_50px_-24px_rgba(0,0,0,1)] backdrop-blur-xl"
             >
               <Icon

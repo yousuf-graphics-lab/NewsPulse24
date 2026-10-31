@@ -42,6 +42,40 @@ follows:
 VITE_SITE_URL=https://your-domain.com npm run build
 ```
 
+## Motion system
+
+A single set of tokens (`src/lib/motion.js`) drives every animation so the whole
+interface shares one rhythm:
+
+| Token | Value | Used for |
+| --- | --- | --- |
+| `EASE` | `cubic-bezier(.22,1,.36,1)` | entrances, layout shifts, hero text |
+| `EASE_IN_OUT` | `cubic-bezier(.65,0,.35,1)` | the sliding nav / filter pills |
+| `EASE_SOFT` | `cubic-bezier(.4,0,.6,1)` | exits and dismissals |
+| `DUR` | 120 – 900 ms | instant → fast → base → slow → cinematic |
+
+Behaviour:
+
+- **Hero carousel** — crossfade (0.75 s) with a slower ken-burns settle (1.15 s),
+  staggered text lines, a skewed red light sweep and progress bars; hover, focus
+  and tab-visibility all pause autoplay.
+- **Sliding pills** — the active nav tab and category filter share a `layoutId`
+  pill, so the highlight glides between items instead of snapping.
+- **Grid & filters** — Framer Motion `layout` reflow with short staggered
+  entrances; exits are 120 ms so the next click is never blocked.
+- **Dropdowns & panels** — bell, account menu and search results scale in from
+  their anchor corner over 200 ms.
+- **Modals & toasts** — 320/300 ms springs with a shared close transition; the
+  subscribe flow crossfades from form to confirmation.
+- **Route changes** — content fades up 8 px on navigation (skipped on first paint
+  so prerendered HTML shows instantly), and the article reading bar tracks scroll
+  with no easing lag.
+- **Respect & performance** — `MotionConfig reducedMotion="user"` plus a CSS
+  `prefers-reduced-motion` block disables all of it cleanly; the ambient glow
+  sits on its own composited layer so scrolling never repaints the background,
+  the globe re-projects at 14 fps and pauses when scrolled away, and
+  below-the-fold bands use `content-visibility: auto`.
+
 ## Stack
 
 - **React 18 + Vite 5**

@@ -36,6 +36,7 @@ export default function TopStoriesSidebar({ className = '' }) {
                   src={story.image}
                   alt={story.imageAlt}
                   loading="lazy"
+                  decoding="async"
                   className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
                   style={{ objectPosition: story.imagePosition }}
                 />

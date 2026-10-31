@@ -23,12 +23,12 @@ export default function SiteHeader({ ticker = true }) {
   return (
     <>
       <header className="relative z-40">
-        <div className="sticky top-0 z-40">
+        <div className="sticky top-0 z-40 isolate bg-ink-950">
         {/* brand row */}
         <div
           className={`relative border-b border-line transition-colors duration-300 ${
             scrolled
-              ? 'bg-ink-950/92 backdrop-blur-xl shadow-[0_18px_40px_-30px_rgba(0,0,0,0.95)]'
+              ? 'bg-ink-950/[0.94] backdrop-blur-xl shadow-[0_18px_40px_-30px_rgba(0,0,0,0.95)]'
               : 'bg-ink-950/80 backdrop-blur-md'
           }`}
         >

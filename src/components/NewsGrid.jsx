@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { SearchX } from 'lucide-react';
 import NewsCard from './NewsCard';
+import { gridItem, LAYOUT_TRANSITION } from '../lib/motion';
 
 export default function NewsGrid({ stories, columns = 4, showViews = false, onReset }) {
   if (!stories.length) {
@@ -24,24 +25,14 @@ export default function NewsGrid({ stories, columns = 4, showViews = false, onRe
   return (
     <motion.div
       layout
+      transition={LAYOUT_TRANSITION}
       className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${
         columns === 4 ? 'xl:grid-cols-4' : columns === 3 ? 'lg:grid-cols-3' : ''
       }`}
     >
       <AnimatePresence mode="popLayout">
         {stories.map((story, i) => (
-          <motion.div
-            key={story.id}
-            layout
-            initial={{ opacity: 0, y: 18, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -12, scale: 0.97 }}
-            transition={{
-              duration: 0.42,
-              delay: Math.min(i * 0.045, 0.24),
-              ease: [0.22, 1, 0.36, 1],
-            }}
-          >
+          <motion.div key={story.id} {...gridItem(i)}>
             <NewsCard story={story} showViews={showViews} />
           </motion.div>
         ))}

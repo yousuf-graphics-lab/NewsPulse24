@@ -26,7 +26,7 @@ export default function TrendingNowPanel() {
               to={`/article/${story.slug}`}
               className="group flex items-center gap-2.5 px-3 py-2 transition-colors hover:bg-white/[0.035]"
             >
-              <span className="grid h-5 w-5 shrink-0 place-items-center rounded-[3px] bg-pulse/12 text-[10px] font-extrabold text-pulse ring-1 ring-pulse/25 transition-colors group-hover:bg-pulse group-hover:text-white group-hover:ring-pulse">
+              <span className="grid h-5 w-5 shrink-0 place-items-center rounded-[3px] bg-pulse/[0.12] text-[10px] font-extrabold text-pulse ring-1 ring-pulse/25 transition-colors group-hover:bg-pulse group-hover:text-white group-hover:ring-pulse">
                 {i + 1}
               </span>
               <span className="min-w-0 flex-1">

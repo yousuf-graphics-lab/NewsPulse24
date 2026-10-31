@@ -122,7 +122,7 @@ export default function ArticlePage() {
       {/* reading progress */}
       <div className="fixed inset-x-0 top-0 z-50 h-[2px] bg-transparent">
         <div
-          className="h-full bg-pulse shadow-[0_0_12px_rgba(255,16,36,0.9)] transition-[width] duration-150"
+          className="h-full bg-pulse shadow-[0_0_12px_rgba(255,16,36,0.9)]"
           style={{ width: `${progress}%` }}
         />
       </div>

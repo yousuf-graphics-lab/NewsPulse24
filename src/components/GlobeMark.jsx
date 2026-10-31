@@ -3,12 +3,12 @@ import { geoOrthographic, geoPath } from 'd3-geo';
 import { WORLD_LAND } from '../data/worldLand';
 
 const ROTATION_SECONDS = 30;
-const FRAME_MS = 1000 / 30; // 30fps is plenty for a slow globe spin
+const FRAME_MS = 1000 / 14; // a slow 30s rotation reads smoothly at 14 updates/s
 const TILT = -12;
 const START_LAMBDA = -62;
 
 const RAD = Math.PI / 180;
-const MERIDIANS = Array.from({ length: 12 }, (_, i) => -180 + i * 30);
+const MERIDIANS = Array.from({ length: 8 }, (_, i) => -180 + i * 45);
 const PARALLELS = [-60, -30, 0, 30, 60];
 
 /**
@@ -43,12 +43,12 @@ const makeGraticulePath = (lambda) => {
 
   for (const meridian of MERIDIANS) {
     const pts = [];
-    for (let lat = -80; lat <= 80; lat += 4) pts.push([meridian, lat]);
+    for (let lat = -80; lat <= 80; lat += 6) pts.push([meridian, lat]);
     line(pts);
   }
   for (const parallel of PARALLELS) {
     const pts = [];
-    for (let lon = -180; lon <= 180; lon += 3) pts.push([lon, parallel]);
+    for (let lon = -180; lon <= 180; lon += 5) pts.push([lon, parallel]);
     line(pts);
   }
   return d;
@@ -83,6 +83,7 @@ export default function GlobeMark({
   }
 
   useEffect(() => {
+    const host = landRef.current?.closest('svg');
     const projection = projectionRef.current;
     const path = pathRef.current;
     const apply = (lambda) => {
@@ -98,7 +99,8 @@ export default function GlobeMark({
     let lambda = START_LAMBDA;
     let last = performance.now();
     let sinceDraw = 0;
-    let paused = false;
+    let paused = document.hidden;
+    let offscreen = false;
 
     const onVisibility = () => {
       paused = document.hidden;
@@ -106,14 +108,27 @@ export default function GlobeMark({
     };
     document.addEventListener('visibilitychange', onVisibility);
 
+    // stop re-projecting when the mark is scrolled out of view
+    let io;
+    if (host && 'IntersectionObserver' in window) {
+      io = new IntersectionObserver(
+        ([entry]) => {
+          offscreen = !entry.isIntersecting;
+          last = performance.now();
+        },
+        { rootMargin: '80px' },
+      );
+      io.observe(host);
+    }
+
     const tick = (now) => {
       const delta = Math.min(now - last, 120);
       last = now;
-      if (!paused) {
+      if (!paused && !offscreen) {
         lambda -= (360 / (ROTATION_SECONDS * 1000)) * delta;
         if (lambda <= -360) lambda += 360;
         sinceDraw += delta;
-        // throttle path re-projection to 30fps to keep the main thread light
+        // throttled path re-projection keeps the main thread light
         if (sinceDraw >= FRAME_MS) {
           sinceDraw = 0;
           apply(lambda);
@@ -126,6 +141,7 @@ export default function GlobeMark({
     return () => {
       cancelAnimationFrame(frame);
       document.removeEventListener('visibilitychange', onVisibility);
+      io?.disconnect();
     };
   }, [spin]);
 

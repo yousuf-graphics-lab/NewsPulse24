@@ -1,5 +1,7 @@
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { Menu, Radio } from 'lucide-react';
+import { EASE_IN_OUT } from '../lib/motion';
 import { CATEGORIES } from '../data/news';
 import { useApp } from '../context/AppContext';
 
@@ -22,7 +24,7 @@ export default function PrimaryNavigation() {
   return (
     <nav
       aria-label="Primary"
-      className="border-b border-line bg-ink-900/92 backdrop-blur-xl"
+      className="border-b border-line bg-ink-900/[0.94] backdrop-blur-xl"
     >
       <div className="container-news flex h-[46px] items-center justify-between gap-2 sm:gap-4 lg:h-[52px]">
         <ul className="nav-fade no-scrollbar flex flex-1 items-center gap-0.5 overflow-x-auto pr-8 lg:gap-0.5 lg:overflow-visible lg:pr-0">

@@ -141,7 +141,7 @@ export default function HomePage() {
         </div>
 
         {/* ---------- MOST READ RAIL ---------- */}
-        <section aria-labelledby="most-read-heading" className="mt-6">
+        <section aria-labelledby="most-read-heading" className="defer-paint mt-6">
           <div className="mb-2.5 flex items-center justify-between">
             <h2
               id="most-read-heading"
@@ -183,7 +183,7 @@ export default function HomePage() {
         </section>
 
         {/* ---------- EDITOR'S DESK ---------- */}
-        <section aria-labelledby="editors-heading" className="mt-6">
+        <section aria-labelledby="editors-heading" className="defer-paint mt-6">
           <SectionHeading
             title="From the Editor’s Desk"
             action="All opinion"
@@ -228,7 +228,7 @@ export default function HomePage() {
         </section>
 
         {/* ---------- PULSE REPORT BAND ---------- */}
-        <section className="relative mt-6 overflow-hidden rounded-[9px] border border-line bg-ink-850">
+        <section className="defer-paint relative mt-6 overflow-hidden rounded-[9px] border border-line bg-ink-850">
           <div className="pointer-events-none absolute inset-0 grid-lines opacity-50" />
           <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-pulse/15 blur-[70px]" />
           <div className="relative flex flex-col items-start gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">

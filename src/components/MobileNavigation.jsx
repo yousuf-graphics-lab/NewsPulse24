@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronRight, LogOut, Radio, Search, X } from 'lucide-react';
 import { CATEGORIES, HERO_STORIES } from '../data/news';
 import { useApp } from '../context/AppContext';
@@ -60,7 +61,17 @@ export default function MobileNavigation({ open, onClose }) {
           <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
             Sections
           </p>
-          <ul className="mb-5 space-y-0.5">
+          <AnimatePresence>
+            {open && (
+              <motion.ul
+                className="mb-5 space-y-0.5"
+                initial="hidden"
+                animate="show"
+                variants={{
+                  hidden: {},
+                  show: { transition: { staggerChildren: 0.022, delayChildren: 0.08 } },
+                }}
+              >
             <li>
               <Link
                 to="/"
@@ -71,7 +82,13 @@ export default function MobileNavigation({ open, onClose }) {
               </Link>
             </li>
             {CATEGORIES.map((c) => (
-              <li key={c}>
+              <motion.li
+                key={c}
+                variants={{
+                  hidden: { opacity: 0, x: 10 },
+                  show: { opacity: 1, x: 0, transition: { duration: 0.26, ease: [0.22, 1, 0.36, 1] } },
+                }}
+              >
                 <Link
                   to={`/?category=${encodeURIComponent(c)}`}
                   onClick={onClose}
@@ -80,9 +97,11 @@ export default function MobileNavigation({ open, onClose }) {
                   {c}
                   <ChevronRight className="h-3.5 w-3.5 text-muted/60" />
                 </Link>
-              </li>
+              </motion.li>
             ))}
-          </ul>
+              </motion.ul>
+            )}
+          </AnimatePresence>
 
           <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
             Top stories
