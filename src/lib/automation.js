@@ -524,15 +524,36 @@ export const buildDraft = (item, source, { useSourceImages = false } = {}) => {
   const lead = (cleaned[0] || summary).slice(0, 240);
   const standfirst = lead.length >= 30 ? lead : `${title} — the latest from ${source.name}.`.slice(0, 220);
 
-  // Group the sentences into readable paragraphs rather than one wall of text.
+  // The standfirst already carries sentence one, so the body continues from
+  // sentence two — no repeat, and the paragraphs follow the source's order.
+  const rest = cleaned.length > 1 ? cleaned.slice(1) : [];
+  if (!rest.length) {
+    // One-sentence source copy: continue the story after the standfirst
+    // instead of repeating the standfirst as the first paragraph.
+    const tail = summary.slice(lead.length).trim();
+    if (tail.length > 60) {
+      rest.push(tail);
+    } else {
+      const parts = summary.split(/(?<=,)\s+/);
+      if (parts.length > 2) rest.push(parts.slice(1).join(' '));
+    }
+  }
   const body = [];
-  const chunks = [cleaned.slice(0, 2), cleaned.slice(2, 4), cleaned.slice(4, 7)].filter((chunk) => chunk.length);
+  const chunks = [rest.slice(0, 3), rest.slice(3, 6), rest.slice(6, 9)].filter((chunk) => chunk.length);
   for (const chunk of chunks) body.push({ type: 'p', text: chunk.join(' ') });
 
-  const bullets = cleaned.slice(1, 4).map((sentence) => sentence.replace(/\s+/g, ' ').slice(0, 160));
-  if (bullets.length >= 3) {
+  // Key points only when there is copy left over that the body did not use.
+  const spare = rest.slice(9, 13).map((sentence) => sentence.replace(/\s+/g, ' ').slice(0, 160));
+  if (spare.length >= 3) {
     body.push({ type: 'h2', text: 'Key points' });
-    body.push({ type: 'list', items: bullets });
+    body.push({ type: 'list', items: spare });
+  }
+
+  if (!body.some((block) => block.type === 'p')) {
+    body.push({
+      type: 'p',
+      text: `This is a brief dispatch. ${source.name} has published the full report, including the context behind this headline.`,
+    });
   }
 
   body.push({
