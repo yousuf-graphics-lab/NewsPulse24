@@ -20,8 +20,8 @@
  *   audit[]     append-only command log
  *
  * This is deliberately a *local* database: it is the durable store for this
- * browser. `db.export()` produces the exact JSON a server would receive, and
- * `src/lib/supabaseAdapter.js` shows the drop-in path to a hosted Postgres.
+ * browser. `exportDatabase()` produces the exact JSON a hosted Postgres would
+ * receive, which is the seam a server-side sync would plug into.
  */
 import { AUTHORS, STORIES } from '../data/news';
 
