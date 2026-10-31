@@ -9,14 +9,12 @@ const ICONS = {
 };
 
 export default function ToastHost() {
-  const { toasts, tickerDock } = useApp();
+  const { toasts } = useApp();
 
   return (
     <div
       aria-live="polite"
-      className={`pointer-events-none fixed left-1/2 z-[90] flex w-[min(92vw,420px)] -translate-x-1/2 flex-col items-center gap-2 transition-[bottom] duration-300 ${
-        tickerDock === 'bottom' ? 'bottom-[56px]' : 'bottom-4'
-      }`}
+      className="pointer-events-none fixed bottom-4 left-1/2 z-[90] flex w-[min(92vw,420px)] -translate-x-1/2 flex-col items-center gap-2"
     >
       <AnimatePresence>
         {toasts.map((t) => {

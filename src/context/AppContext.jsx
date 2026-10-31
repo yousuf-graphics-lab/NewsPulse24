@@ -12,7 +12,6 @@ const AppContext = createContext(null);
 
 const BOOKMARK_KEY = 'newspulse24:bookmarks';
 const SUBSCRIBER_KEY = 'newspulse24:subscriber';
-const TICKER_KEY = 'newspulse24:tickerDock';
 
 const loadBookmarks = () => {
   try {
@@ -74,13 +73,6 @@ export function AppProvider({ children }) {
     }
   });
   const [user, setUser] = useState(null);
-  const [tickerDock, setTickerDockState] = useState(() => {
-    try {
-      return localStorage.getItem(TICKER_KEY) || 'below-nav';
-    } catch {
-      return 'below-nav';
-    }
-  });
   const toastId = useRef(0);
 
   const unreadCount = notifications.filter((n) => n.unread).length;
@@ -99,15 +91,6 @@ export function AppProvider({ children }) {
     window.setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4200);
-  }, []);
-
-  const setTickerDock = useCallback((dock) => {
-    setTickerDockState(dock);
-    try {
-      localStorage.setItem(TICKER_KEY, dock);
-    } catch {
-      /* preference stays in memory */
-    }
   }, []);
 
   const openModal = useCallback((name, payload = null) => {
@@ -223,8 +206,6 @@ export function AppProvider({ children }) {
       user,
       signIn,
       signOut,
-      tickerDock,
-      setTickerDock,
     }),
     [
       modal,
@@ -246,8 +227,6 @@ export function AppProvider({ children }) {
       user,
       signIn,
       signOut,
-      tickerDock,
-      setTickerDock,
     ],
   );
 

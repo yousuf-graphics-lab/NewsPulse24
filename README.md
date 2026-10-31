@@ -38,12 +38,11 @@ preview host.
 - Sticky brand header (rotating globe logo, search, notifications, sign-in, subscribe)
 - Separate primary navigation row with a red active tab, overflow-aware mobile scrolling,
   hamburger drawer and Live TV entry
-- **Movable breaking-news bar**: colour-matched signal line, mixed *breaking* + *most-read*
-  headlines and a live UTC clock that pauses on hover. Grab the handle on the right and drag it
-  to any of three docking positions — above the navigation, under the navigation (default) or
-  fixed to the bottom of the screen. A tap/click or <kbd>Enter</kbd> cycles the positions,
-  <kbd>↑</kbd>/<kbd>↓</kbd> jump between them, live drop zones preview the target while dragging,
-  and the choice is remembered in `localStorage`. Works with mouse, pen and touch.
+- **Sliding breaking-news ribbon**: mixed *breaking* + *most-read* headlines with per-item
+  timestamps and a live UTC clock. The ribbon slides continuously at a constant 82 px/second
+  (duration is derived from the measured track width, so it never speeds up or gaps at the loop
+  seam), pauses on hover or keyboard focus, and has pause / skip-back / skip-forward controls.
+  It keeps sliding on phones too, with a compact layout at small widths.
 - Cinematic hero carousel: 8s autoplay, progress bars, prev/next, keyboard- and
   screen-reader-labelled controls, film-style crossfade + light sweep, and a synced
   headline / description / category / image / destination swap
@@ -74,8 +73,8 @@ and related-story links all read from that same source — no card markup is dup
 - Bookmark/reading list persisted to `localStorage`
 - Live TV modal with player chrome and an honest *stream not configured* state instead of a
   fake feed
-- Mobile search overlay, mobile navigation drawer, toasts (which lift clear of a
-  bottom-docked ticker), accessible focus rings, skip-to-content link and reduced-motion support
+- Mobile search overlay, mobile navigation drawer, toasts, accessible focus rings,
+  skip-to-content link and reduced-motion support
 
 ## Structure
 

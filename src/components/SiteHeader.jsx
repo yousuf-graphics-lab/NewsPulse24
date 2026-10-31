@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { Menu, Search, X } from 'lucide-react';
 import BrandLogo from './BrandLogo';
@@ -11,7 +10,7 @@ import BreakingNewsTicker from './BreakingNewsTicker';
 import { useApp } from '../context/AppContext';
 
 export default function SiteHeader({ ticker = true }) {
-  const { searchOpen, setSearchOpen, menuOpen, setMenuOpen, tickerDock } = useApp();
+  const { searchOpen, setSearchOpen, menuOpen, setMenuOpen } = useApp();
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -25,7 +24,6 @@ export default function SiteHeader({ ticker = true }) {
     <>
       <header className="relative z-40">
         <div className="sticky top-0 z-40">
-          {ticker && tickerDock === 'above-nav' && <BreakingNewsTicker />}
         {/* brand row */}
         <div
           className={`relative border-b border-line transition-colors duration-300 ${
@@ -69,13 +67,8 @@ export default function SiteHeader({ ticker = true }) {
         {/* navigation row */}
         <PrimaryNavigation />
         </div>
-        {ticker && tickerDock === 'below-nav' && <BreakingNewsTicker />}
+        {ticker && <BreakingNewsTicker />}
       </header>
-
-      {ticker &&
-        tickerDock === 'bottom' &&
-        typeof document !== 'undefined' &&
-        createPortal(<BreakingNewsTicker variant="bottom" />, document.body)}
 
       {/* mobile search overlay */}
       {searchOpen && (

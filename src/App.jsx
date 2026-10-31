@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { Route, Routes, useLocation } from 'react-router-dom';
 import SiteHeader from './components/SiteHeader';
-import { useApp } from './context/AppContext';
 import SiteFooter from './components/SiteFooter';
 import SubscribeModal from './components/SubscribeModal';
 import SignInModal from './components/SignInModal';
@@ -24,8 +23,6 @@ function ScrollManager() {
 }
 
 export default function App() {
-  const { tickerDock } = useApp();
-
   return (
     <>
       <a
@@ -49,7 +46,6 @@ export default function App() {
           </Routes>
         </div>
         <SiteFooter />
-        {tickerDock === 'bottom' && <div aria-hidden="true" className="h-[40px]" />}
       </div>
 
       <SubscribeModal />
