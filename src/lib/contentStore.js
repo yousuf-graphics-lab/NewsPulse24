@@ -1,260 +1,209 @@
 /**
- * Editorial content store — the link between the admin panel and the live site.
+ * Editorial content layer.
  *
- * Base stories ship inside the bundle (`data/news.js`). Everything an editor
- * changes in /admin is layered on top of them from localStorage:
- *
- *   posts    full copies of edited or newly written stories (draft or published)
- *   hidden   base story ids the newsroom has taken down
- *   settings hero pins, ticker pins
- *
- * `applyContent()` rebuilds the exported `STORIES` array in place, so every
- * page (homepage, article, search, latest, ticker, sidebar) picks the change
- * up without any extra plumbing.
- *
- * Scope note: this is a browser-local CMS. Content is visible on the machine
- * that made it — publishing to the world needs a database + server, see
- * "Admin panel" in the README.
+ * The shipped dataset in `data/news.js` is the immutable baseline; everything
+ * an editor does in the control room lives in `lib/db.js` and is layered on top
+ * here. `applyContent()` rebuilds the exported `STORIES` array in place so the
+ * hero, ticker, latest, search and article pages all read one live source.
  */
 import { STORIES } from '../data/news';
-
-const CONTENT_KEY = 'newspulse24:content:v1';
-const READS_KEY = 'newspulse24:reads:v1';
-
-const EMPTY = {
-  version: 1,
-  posts: [],
-  hidden: [],
-  settings: { heroPins: [], tickerPins: [] },
-  updatedAt: null,
-};
+import {
+  clearReads as dbClearReads,
+  getVersion as dbVersion,
+  hiddenIds,
+  logEvent,
+  posts as dbPosts,
+  read as dbRead,
+  reads as dbReads,
+  recordRead as dbRecordRead,
+  settings as dbSettings,
+  subscribe as dbSubscribe,
+  upsertPost,
+  write,
+} from './db';
 
 const BASE_IDS = new Set(STORIES.map((s) => s.id));
 const BASELINE = STORIES.map((s) => JSON.parse(JSON.stringify(s)));
 
-let version = 0;
-const listeners = new Set();
+const clone = (value) => JSON.parse(JSON.stringify(value));
 
-const hasWindow = () => typeof window !== 'undefined' && !!window.localStorage;
+export const subscribe = dbSubscribe;
+export const getVersion = dbVersion;
 
-const normalise = (raw) => {
-  if (!raw || typeof raw !== 'object') return { ...EMPTY };
-  return {
-    version: 1,
-    posts: Array.isArray(raw.posts) ? raw.posts.filter((p) => p?.id && p?.slug) : [],
-    hidden: Array.isArray(raw.hidden) ? raw.hidden.filter((id) => BASE_IDS.has(id)) : [],
-    settings: {
-      heroPins: Array.isArray(raw.settings?.heroPins) ? raw.settings.heroPins.slice(0, 3) : [],
-      tickerPins: Array.isArray(raw.settings?.tickerPins) ? raw.settings.tickerPins.slice(0, 4) : [],
-    },
-    updatedAt: raw.updatedAt || null,
-  };
-};
-
-export const readContent = () => {
-  if (!hasWindow()) return { ...EMPTY };
-  try {
-    return normalise(JSON.parse(window.localStorage.getItem(CONTENT_KEY) || 'null'));
-  } catch {
-    return { ...EMPTY };
-  }
-};
-
-const writeContent = (state) => {
-  if (!hasWindow()) return state;
-  try {
-    window.localStorage.setItem(CONTENT_KEY, JSON.stringify(state));
-  } catch {
-    /* storage blocked — the in-memory copy still renders for this session */
-  }
-  return state;
-};
-
-const emit = () => {
-  version += 1;
-  listeners.forEach((listener) => listener());
-};
-
-/* --------------------------------------------------------------------- reads */
-
-/** Real per-browser article reads, tracked from the article page. */
-export const readCounts = () => {
-  if (!hasWindow()) return {};
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(READS_KEY) || '{}');
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
-  }
-};
-
-export const recordRead = (slug) => {
-  if (!hasWindow() || !slug) return;
-  const counts = readCounts();
-  counts[slug] = (counts[slug] || 0) + 1;
-  try {
-    window.localStorage.setItem(READS_KEY, JSON.stringify(counts));
-  } catch {
-    /* ignore */
-  }
-};
-
-export const resetReads = () => {
-  if (!hasWindow()) return;
-  try {
-    window.localStorage.removeItem(READS_KEY);
-  } catch {
-    /* ignore */
-  }
-};
-
-/* ------------------------------------------------------------------ mutation */
-
-export const updateContent = (updater) => {
-  const current = readContent();
-  const next = normalise({ ...updater(current), version: 1, updatedAt: new Date().toISOString() });
-  writeContent(next);
-  applyContent();
-  return next;
-};
+/* ---------------------------------------------------------------- mutation */
 
 export const savePost = (post) => {
-  const now = new Date().toISOString();
-  return updateContent((state) => {
-    const exists = state.posts.some((p) => p.id === post.id);
-    const record = {
-      ...post,
-      status: post.status === 'draft' ? 'draft' : 'published',
-      updatedAt: now,
-      createdAt: post.createdAt || now,
+  const result = upsertPost(post);
+  return result;
+};
+
+export const deletePost = (id) => {
+  const target = allPosts().find((post) => post.id === id);
+  const slug = target?.slug;
+  return write((draft) => {
+    const withoutPins = {
+      ...draft.settings,
+      heroPins: draft.settings.heroPins.filter((pin) => pin !== slug),
+      tickerPins: draft.settings.tickerPins.filter((pin) => pin !== slug),
+      override:
+        draft.settings.override && draft.settings.override.slug === slug
+          ? null
+          : draft.settings.override,
     };
+    if (BASE_IDS.has(id)) {
+      return {
+        ...draft,
+        posts: draft.posts.filter((post) => post.id !== id),
+        hidden: draft.hidden.includes(id) ? draft.hidden : [...draft.hidden, id],
+        settings: withoutPins,
+      };
+    }
     return {
-      ...state,
-      posts: exists
-        ? state.posts.map((p) => (p.id === post.id ? record : p))
-        : [record, ...state.posts],
+      ...draft,
+      posts: draft.posts.filter((post) => post.id !== id),
+      settings: withoutPins,
     };
   });
 };
 
-export const deletePost = (id) =>
-  updateContent((state) => {
-    if (BASE_IDS.has(id)) {
-      return {
-        ...state,
-        posts: state.posts.filter((p) => p.id !== id),
-        hidden: state.hidden.includes(id) ? state.hidden : [...state.hidden, id],
-        settings: {
-          heroPins: state.settings.heroPins.filter((s) => s !== id),
-          tickerPins: state.settings.tickerPins.filter((s) => s !== id),
-        },
-      };
-    }
-    return { ...state, posts: state.posts.filter((p) => p.id !== id) };
-  });
-
 export const restoreBaseStory = (id) =>
-  updateContent((state) => ({ ...state, hidden: state.hidden.filter((h) => h !== id) }));
+  write((draft) => ({ ...draft, hidden: draft.hidden.filter((item) => item !== id) }));
 
 export const setPostStatus = (id, status) =>
-  updateContent((state) => ({
-    ...state,
-    posts: state.posts.map((p) =>
-      p.id === id
-        ? {
-            ...p,
-            status,
-            publishedAt:
-              status === 'published' ? new Date().toISOString() : p.publishedAt,
-            updatedAt: new Date().toISOString(),
-          }
-        : p,
-    ),
+  write((draft) => ({
+    ...draft,
+    posts: draft.posts.some((post) => post.id === id)
+      ? draft.posts.map((post) =>
+          post.id === id
+            ? {
+                ...post,
+                status,
+                publishedAt: status === 'published' ? new Date().toISOString() : post.publishedAt,
+                updatedAt: new Date().toISOString(),
+              }
+            : post,
+        )
+      : draft.posts,
   }));
 
 export const updateSettings = (patch) =>
-  updateContent((state) => ({
-    ...state,
-    settings: { ...state.settings, ...patch },
+  write((draft) => ({ ...draft, settings: { ...draft.settings, ...patch } }));
+
+export const resetAllContent = () =>
+  write((draft) => ({
+    ...draft,
+    posts: [],
+    hidden: [],
+    settings: {
+      heroPins: [],
+      tickerPins: [],
+      override: null,
+      livePromo: true,
+      autoRebalance: true,
+      autoSync: true,
+      desks: {},
+    },
   }));
 
-export const resetAllContent = () => {
-  if (hasWindow()) {
-    try {
-      window.localStorage.removeItem(CONTENT_KEY);
-    } catch {
-      /* ignore */
-    }
-  }
+/* -------------------------------------------------------------------- staff */
+
+export const staffList = () => dbRead().staff;
+
+export const upsertStaff = (member) =>
+  write((draft) => {
+    const index = draft.staff.findIndex((item) => item.id === member.id);
+    if (index === -1) draft.staff.unshift(member);
+    else draft.staff[index] = { ...draft.staff[index], ...member };
+    return draft;
+  });
+
+export const removeStaff = (id) =>
+  write((draft) => ({ ...draft, staff: draft.staff.filter((item) => item.id !== id) }));
+
+export const getSettings = () => dbSettings();
+export const readContent = () => dbRead();
+export const readCounts = () =>
+  Object.fromEntries(Object.entries(dbReads()).map(([slug, entry]) => [slug, entry.count]));
+export const recordRead = (slug) => {
+  dbRecordRead(slug);
+  applyContent();
+};
+export const resetReads = () => {
+  dbClearReads();
   applyContent();
 };
 
 /* ------------------------------------------------------------------- queries */
 
-/** Every story an editor can see: published ones plus drafts and hidden base stories. */
 export const allPosts = () => {
-  const state = readContent();
-  const byId = new Map(state.posts.map((p) => [p.id, p]));
+  const state = dbRead();
+  const byId = new Map(state.posts.map((post) => [post.id, post]));
+  const hidden = new Set(state.hidden);
   const rows = BASELINE.map((base) => {
     const edit = byId.get(base.id);
     return {
       ...base,
       ...(edit || {}),
       isBase: true,
-      status: state.hidden.includes(base.id) ? 'hidden' : edit?.status || 'published',
+      status: hidden.has(base.id) ? 'hidden' : edit?.status || 'published',
     };
   });
   for (const post of state.posts) {
     if (!BASE_IDS.has(post.id)) rows.push({ ...post, isBase: false });
   }
-  return rows.sort((a, b) => new Date(b.updatedAt || b.publishedAt) - new Date(a.updatedAt || a.publishedAt));
+  return rows.sort(
+    (a, b) => new Date(b.updatedAt || b.publishedAt) - new Date(a.updatedAt || a.publishedAt),
+  );
 };
 
-export const getSettings = () => readContent().settings;
-
-export const publishedSlugs = () => STORIES.map((s) => s.slug);
-
 export const slugTaken = (slug, exceptId) =>
-  STORIES.some((s) => s.slug === slug && s.id !== exceptId) ||
-  allPosts().some((p) => p.slug === slug && p.id !== exceptId && !BASE_IDS.has(p.id));
+  allPosts().some((post) => post.slug === slug && post.id !== exceptId);
 
 /* ---------------------------------------------------------- derived editorial */
 
-const HERO_KICKERS = ['Breaking News', 'Technology', 'Inside NewsPulse'];
+const dedupe = (list) => list.filter((story, index) => story && list.indexOf(story) === index);
+const newestFirst = (a, b) => new Date(b.publishedAt) - new Date(a.publishedAt);
 
-/** Hero slides, honouring the editor's pin order. */
-export const getHeroStories = () => {
-  const pins = getSettings().heroPins;
-  const pinned = pins.map((slug) => STORIES.find((s) => s.slug === slug)).filter(Boolean);
-  const flagged = STORIES.filter((s) => s.hero && !pinned.includes(s));
-  const rest = STORIES.filter((s) => !s.hero && !pinned.includes(s));
-  return [...pinned, ...flagged, ...rest]
-    .slice(0, Math.max(3, Math.min(pinned.length + flagged.length, 5)))
-    .map((story, i) => ({ ...story, heroKicker: story.heroKicker || HERO_KICKERS[i] || story.category }));
+/** Desk weights from Settings bias the automatic order, newest breaks ties. */
+const weighted = (list) => {
+  const desks = getSettings().desks || {};
+  const weight = (story) => Number(desks[story.category] ?? 1);
+  return [...list].sort((a, b) => weight(b) - weight(a) || newestFirst(a, b));
 };
 
-/** Breaking ticker entries, pins first. */
+export const getHeroStories = () => {
+  const pins = getSettings().heroPins;
+  const pinned = pins.map((slug) => STORIES.find((story) => story.slug === slug)).filter(Boolean);
+  const flagged = weighted(STORIES.filter((story) => story.hero && !pinned.includes(story)));
+  const rest = weighted(STORIES.filter((story) => !story.hero && !pinned.includes(story)));
+  const auto = getSettings().autoRebalance !== false;
+  const ordered = dedupe(auto ? [...pinned, ...flagged, ...rest] : [...pinned, ...flagged]).slice(0, 5);
+  const kickers = ['Breaking News', 'Technology', 'Inside NewsPulse'];
+  return ordered.map((story, index) => ({
+    ...story,
+    heroKicker: story.heroKicker || kickers[index] || story.category,
+  }));
+};
+
 export const getTickerStories = () => {
   const pins = getSettings().tickerPins;
-  const dedupe = (list) => list.filter((story, i) => story && list.indexOf(story) === i);
-  const pinned = pins.map((slug) => STORIES.find((s) => s.slug === slug));
-  const breakingNewest = [...STORIES]
-    .filter((s) => s.hero)
-    .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
-  const newest = [...STORIES].sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+  const pinned = pins.map((slug) => STORIES.find((story) => story.slug === slug));
+  const breakingNewest = weighted(STORIES.filter((story) => story.hero));
+  const newest = weighted(STORIES);
   const byViews = [...STORIES].sort((a, b) => (b.views || 0) - (a.views || 0));
-
-  // Pins lead, then breaking, then the freshest copy, then most-read.
-  const lead = dedupe([...pinned, ...breakingNewest, ...newest]).slice(0, 4);
-  const topRead = dedupe([...byViews]).filter((s) => !lead.includes(s)).slice(0, 4);
+  const auto = getSettings().autoRebalance !== false;
+  const lead = dedupe(auto ? [...pinned, ...breakingNewest, ...newest] : [...pinned, ...breakingNewest]).slice(0, 4);
+  const topRead = dedupe(byViews).filter((story) => !lead.includes(story)).slice(0, 4);
   return { breaking: lead, topRead: topRead.length ? topRead : byViews.slice(0, 4) };
 };
 
-/* --------------------------------------------------------------- publication */
+export const getOverride = () => getSettings().override;
+
+/* --------------------------------------------------------------------- apply */
 
 export function applyContent() {
-  let state = readContent();
-  const edits = new Map(state.posts.map((p) => [p.id, p]));
+  const state = dbRead();
+  const edits = new Map(state.posts.map((post) => [post.id, post]));
   const hidden = new Set(state.hidden);
   const next = [];
 
@@ -271,20 +220,60 @@ export function applyContent() {
     next.push({ ...post, status: 'published' });
   }
 
-  next.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+  next.sort(newestFirst);
   STORIES.length = 0;
   STORIES.push(...next);
-  emit();
   return next;
 }
 
-/* ---------------------------------------------------------------- react glue */
+/* ---------------------------------------------------------------- utilities */
 
-export const subscribe = (listener) => {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
+const alreadyStored = (id) =>
+  BASE_IDS.has(id) || dbRead().posts.some((post) => post.id === id);
+
+export const publish = (post, { breaking = false } = {}) => {
+  const existed = alreadyStored(post.id);
+  const record = { ...post, status: 'published', hero: breaking || post.hero };
+  const result = savePost(record);
+  applyContent();
+  logEvent(
+    'content',
+    existed ? 'Story updated' : 'Story published',
+    `${record.title}${breaking ? ' · breaking' : ''}`,
+  );
+  return result;
 };
 
-export const getVersion = () => version;
+export const draftSave = (post) => {
+  const existed = alreadyStored(post.id);
+  const result = savePost({ ...post, status: 'draft' });
+  applyContent();
+  logEvent('content', existed ? 'Draft updated' : 'Draft created', post.title || 'Untitled');
+  return result;
+};
 
-if (hasWindow()) applyContent();
+export const takeDown = (id) => {
+  const post = allPosts().find((item) => item.id === id);
+  const result = deletePost(id);
+  applyContent();
+  if (post) logEvent('content', post.isBase ? 'Story taken down' : 'Story deleted', post.title);
+  return result;
+};
+
+export const restore = (post) => {
+  const result = restoreBaseStory(post.id);
+  applyContent();
+  logEvent('content', 'Story restored', post.title);
+  return result;
+};
+
+export const changeStatus = (post, status) => {
+  const result = setPostStatus(post.id, status);
+  applyContent();
+  logEvent('content', status === 'published' ? 'Story published' : 'Story unpublished', post.title);
+  return result;
+};
+
+export const clonePost = (post) => clone(post);
+
+if (typeof window !== 'undefined') applyContent();

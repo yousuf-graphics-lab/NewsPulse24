@@ -16,7 +16,7 @@ import {
   storiesByCategory,
 } from '../data/news';
 import { useApp } from '../context/AppContext';
-import { getHeroStories } from '../lib/contentStore';
+import { getHeroStories, getSettings } from '../lib/contentStore';
 import Seo from '../components/Seo';
 import { absoluteUrl, SITE } from '../config/site';
 
@@ -26,6 +26,7 @@ export default function HomePage() {
   const [params, setParams] = useSearchParams();
   const { openModal } = useApp();
   const category = params.get('category') || 'All';
+  const livePromo = getSettings().livePromo !== false;
 
   const latest = useMemo(() => {
     const heroIds = new Set(getHeroStories().map((s) => s.id));
@@ -135,7 +136,7 @@ export default function HomePage() {
           </section>
 
           <div className="flex flex-col gap-3">
-            <LiveTVPanel />
+            {livePromo ? <LiveTVPanel /> : null}
             <TrendingNowPanel />
           </div>
         </div>

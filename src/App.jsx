@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { MotionConfig } from 'framer-motion';
 import { Route, Routes, useLocation } from 'react-router-dom';
+import { getVersion, subscribe } from './lib/contentStore';
 import SiteHeader from './components/SiteHeader';
+import BreakingOverrideBar from './components/BreakingOverrideBar';
 import SiteFooter from './components/SiteFooter';
 import SubscribeModal from './components/SubscribeModal';
 import SignInModal from './components/SignInModal';
@@ -42,6 +44,12 @@ function FooterGate() {
   return pathname === '/admin' ? null : <SiteFooter />;
 }
 
+/** The control room is a full-bleed console — it supplies its own chrome. */
+function HeaderGate() {
+  const { pathname } = useLocation();
+  return pathname === '/admin' ? null : <SiteHeader />;
+}
+
 function RouteTransition({ children }) {
   const { pathname } = useLocation();
   const [armed, setArmed] = useState(false);
@@ -59,6 +67,12 @@ function RouteTransition({ children }) {
 }
 
 export default function App() {
+  const { pathname } = useLocation();
+  const [contentVersion, setContentVersion] = useState(() => getVersion());
+
+  /* Repaint the public site whenever the editorial database changes. */
+  useEffect(() => subscribe(() => setContentVersion(getVersion())), []);
+
   return (
     <MotionConfig reducedMotion="user" transition={{ duration: DUR.base, ease: EASE }}>
     <>
@@ -71,9 +85,10 @@ export default function App() {
       <div aria-hidden="true" className="ambient-glow" />
       <ScrollManager />
       <div className="relative z-10 flex min-h-screen flex-col">
-        <SiteHeader />
+        <BreakingOverrideBar />
+        <HeaderGate />
         <div className="flex-1">
-          <RouteTransition>
+          <RouteTransition key={pathname === '/admin' ? pathname : `${pathname}:${contentVersion}`}>
             <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/article/:slug" element={<ArticlePage />} />

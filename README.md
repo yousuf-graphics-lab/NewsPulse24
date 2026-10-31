@@ -212,30 +212,46 @@ weight:
   Watch Live and Newsletters open the broadcast and membership dialogs; section links deep-link the
   homepage filters; Privacy, Terms and Cookie links land on real policy sections at `/about`.
 
-## Admin panel
+## Admin panel — Mission Control
 
-`/admin` is the editorial control room: a dark, focused console that writes to the same story
-store the site renders from.
+`/admin` is the newsroom console: a full-bleed control room with its own chrome (no site header),
+a left rail, a live telemetry dashboard and a working story editor. Everything it shows is derived
+from the story dataset or from article opens recorded in this browser, and modelled figures say so.
 
 **Sign in** with the editorial ID and passphrase issued for the newsroom. The credential is verified
 in the browser — the password is only ever a PBKDF2-SHA-256 digest (310 000 iterations, salted and
 peppered), never plaintext, and comparisons are constant-time. Five bad attempts lock the form with
 exponential back-off; sessions live in `sessionStorage` with a 256-bit token, a 20-minute idle
-window and an 8-hour ceiling. The Security tab can rotate the passphrase (hash-only), reset the
-lock-out and sign every session out.
+window and an 8-hour ceiling.
 
-**What it controls**
-
-| Area | Capability |
+| Panel | Capability |
 | --- | --- |
-| Overview | Real stats — published count, words on the wire, total read counter, drafts, breaking, section balance, content-health checks, per-browser reads and a full activity log |
-| Stories | Search and filter the whole newsroom; write a new story with headline, standfirst, section, tags, reporter, lead image, read time, blocks (paragraph, subheading, quote, list), breaking flag and publish date; edit any shipped story; unpublish, take down or delete; restore |
-| Homepage | Pin up to three hero slides and four ticker headlines in order |
-| Security | Session details, passphrase rotation with a strength meter, brute-force guard, audit trail |
+| Dashboard | KPI cards with sparklines and period deltas, concurrent-readership chart with 24 h / 7 d / monthly ranges and All Desks · Breaking · Business · Technology series, peak and publish annotations, Live TV desk card, trending editorial priority with `HERO SLOT` / `TOP STORIES` / `GRID` slots and one-click pinning, Command Log & Alerts with a broadcast transmitter, desk distribution |
+| Newsroom ledger | Search, section and status filters (live / drafts / taken down / breaking), sort by recency, reads or title; edit, publish, unpublish, take down, restore and preview any story |
+| Drafting room | Story editor: headline with auto slug, standfirst, tags, block body (paragraph, subheading, quote, list), lead-image library with focal point and alt text, reporter, read time, read counter, publish timestamp, breaking flag + kicker, live front-page preview, publish-readiness gates, ⌘S / ⌘↵ shortcuts |
+| Live TV & breaking | Site-wide breaking override bar (headline, kicker, tone, target story), live-rail promotion, ticker rundown and pinning |
+| Analytics & heatmaps | Readership heatmap (hour × weekday), desk performance table with share, story leaderboard by reads/minute, storage report |
+| Staff & permissions | Roster seeded from the newsroom directory, add / edit / suspend / remove seats, access tiers, shift coverage across the 24-hour cycle |
+| Settings | Hero and ticker pins in order, auto-rebalance, desk weights that bias the automatic selectors, JSON backup export / import, destructive resets |
+| Security & access | Session details, passphrase rotation with a strength meter, brute-force guard, security trail |
 
-Changes are applied live: `src/lib/contentStore.js` keeps the edits in `localStorage` and rebuilds
-the exported `STORIES` array, so the homepage, article pages, search, latest, ticker and hero all
-pick them up on the next render — no reload, no separate data path.
+### The database
+
+`src/lib/db.js` is a small versioned document store over `localStorage` (`newspulse24:db:v2`,
+schema v2):
+
+- collections for `posts`, `hidden` takedowns, `settings`, `reads`, `staff` and `audit`;
+- forward migration from the v1 keys (`newspulse24:content:v1`, `reads:v1`, `admin:audit`);
+- one atomic write per mutation with quota-aware errors returned to the editor;
+- a change feed the app subscribes to, plus cross-tab `storage` sync;
+- read telemetry capped at 400 events per story and 6 000 in total, audit at 200 rows;
+- JSON export / import so the whole database can be backed up or moved.
+
+`src/lib/contentStore.js` layers that database over the shipped dataset in `src/data/news.js` and
+rebuilds the exported `STORIES` array in place, so the homepage, article pages, search, latest,
+ticker and hero all read one live source. `src/lib/telemetry.js` turns publish times and read
+counters into the dashboard curves, heatmap and leaderboards — modelled distributions are labelled
+as such in the UI, and locally recorded opens are shown separately.
 
 **Scope, stated plainly.** This is a browser-local publisher: content written in the panel is served
 to the browser that wrote it. Publishing to every visitor needs a database and an authenticated API
