@@ -136,7 +136,12 @@ export function AppProvider({ children }) {
         /* ignore */
       }
       setSubscriber({ email, plan });
-      pushToast('Demo subscription confirmed — no payment was processed.', 'success');
+      pushToast(
+        plan === 'newsletter'
+          ? 'You’re subscribed to The Morning Pulse — demo only.'
+          : 'Demo subscription confirmed — no payment was processed.',
+        'success',
+      );
     },
     [pushToast],
   );

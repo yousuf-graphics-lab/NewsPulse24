@@ -7,6 +7,7 @@
     "dev": "vite --host 0.0.0.0 --port 5173",
     "build": "npm run build:assets && vite build && npm run build:ssr && npm run build:prerender && npm run build:seo",
     "build:assets": "node scripts/generate-assets.mjs",
+    "build:footer-art": "node scripts/build-footer-art.mjs",
     "build:ssr": "vite build --ssr scripts/ssr-entry.jsx --outDir dist-ssr",
     "build:prerender": "node scripts/prerender.mjs",
     "build:seo": "node scripts/seo-files.mjs",

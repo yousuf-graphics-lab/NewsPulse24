@@ -21,6 +21,25 @@ const PILLARS = [
   },
 ];
 
+
+const POLICIES = [
+  {
+    id: 'privacy',
+    title: 'Privacy Policy',
+    body: 'We store only what a reader hands us: an email address for briefings and a reading list kept in your own browser. No analytics profiles are built, no data is sold, and newsletter records never leave this device in the demo build.',
+  },
+  {
+    id: 'terms',
+    title: 'Terms of Service',
+    body: 'Reporting on NewsPulse 24 is published for information, not as advice. All content is produced for this front-end demonstration; subscriptions and sign-in are simulated and no payment is ever taken.',
+  },
+  {
+    id: 'cookies',
+    title: 'Cookie Settings',
+    body: 'NewsPulse 24 sets no advertising or third-party cookies. Only functional storage — reading list, briefing preference and session state — is used, and you can clear it at any time from your browser settings.',
+  },
+];
+
 export default function AboutPage() {
   return (
     <main id="main" className="container-news py-6">
@@ -72,6 +91,15 @@ export default function AboutPage() {
               <h2 className="mt-3 text-[13px] font-bold text-bone">{title}</h2>
               <p className="mt-1.5 text-[11.5px] leading-relaxed text-muted">{body}</p>
             </div>
+          ))}
+        </div>
+
+        <div className="grid gap-6 border-t border-line p-6 sm:gap-8 sm:p-8 lg:grid-cols-3">
+          {POLICIES.map(({ id, title, body }) => (
+            <section key={id} id={id} className="scroll-mt-32">
+              <h2 className="text-[13px] font-bold uppercase tracking-[0.12em] text-bone">{title}</h2>
+              <p className="mt-2 text-[11.5px] leading-relaxed text-muted">{body}</p>
+            </section>
           ))}
         </div>
 

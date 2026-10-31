@@ -17,10 +17,18 @@ import NotFoundPage from './pages/NotFoundPage';
 import { DUR, EASE } from './lib/motion';
 
 function ScrollManager() {
-  const { pathname } = useLocation();
+  const { pathname, hash } = useLocation();
   useEffect(() => {
+    if (hash) {
+      // Deep links (e.g. /about#privacy) land on the section, below the sticky header.
+      const t = window.setTimeout(() => {
+        document.getElementById(hash.slice(1))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 80);
+      return () => window.clearTimeout(t);
+    }
     window.scrollTo({ top: 0, behavior: 'instant' });
-  }, [pathname]);
+    return undefined;
+  }, [pathname, hash]);
   return null;
 }
 

@@ -154,7 +154,8 @@ src/
 ├── components/      # Seo, SiteHeader, BrandLogo, GlobeMark, SearchBar, UserActions, PrimaryNavigation,
 │                    # MobileNavigation, BreakingNewsTicker, HeroCarousel, TopStoriesSidebar,
 │                    # SectionHeading, CategoryFilters, NewsGrid, NewsCard, LiveTVPanel,
-│                    # TrendingNowPanel, SubscribeModal, SignInModal, LiveTVModal, SiteFooter…
+│                    # TrendingNowPanel, SubscribeModal, SignInModal, LiveTVModal, SiteFooter,
+│                    # FooterSkyline…
 ├── context/         # AppContext — modals, search, menu, notifications, bookmarks, toasts
 ├── data/news.js     # single editorial dataset + helpers (search, related, formatting)
 │   data/worldLand.js# generated Natural Earth land polygons for the globe mark
@@ -180,15 +181,33 @@ The brand emblem is a genuine globe, not a decorative swirl:
 - **Legible at brand size** — the ocean stays near-black and the land is lit in vivid red, so the
   silhouette reads clearly even at 38 px in the header and 32 px in the footer.
 - **Performance** — the graticule is drawn analytically (a few sampled points per line) instead of
-  from a full GeoJSON graticule, and re-projection is throttled to 30 fps. The whole page still
-  renders at 60 fps with the globe spinning, and the spin pauses when the tab is hidden and is
-  disabled entirely under `prefers-reduced-motion`.
+  from a full GeoJSON graticule, and re-projection is throttled to 14 updates/s. The spin pauses
+  when the tab is hidden, stops when the mark scrolls off-screen, and follows
+  `prefers-reduced-motion`.
 
 Regenerate the land data with:
 
 ```bash
 node scripts/build-land.mjs
 ```
+
+### Footer artwork
+
+The closing band is drawn from vectors, so it stays sharp on any display and adds no raster
+weight:
+
+- **Dotted world map** — real coastlines sampled on an equirectangular grid and emitted as a single
+  round-capped dot path (8,300 dots, 134 kB SVG) by `node scripts/build-footer-art.mjs` into
+  `public/images/footer-world-map.svg`. It sits behind the masthead under a radial mask that fades
+  the graticule out at every edge.
+- **Landmark skyline** — `src/components/FooterSkyline.jsx` draws fourteen world landmarks (Christ
+  the Redeemer, pagoda, Colosseum, Pisa, Big Ben, Eiffel, torii gate, Taj Mahal, Burj Khalifa,
+  Sydney Opera House, Statue of Liberty, Empire State and more) plus a generated low horizon, all
+  inlined SVG with a mask-cut arch arcade. The band bleeds a red horizon glow behind the
+  silhouettes and closes on the red rule above the legal bar.
+- **Working controls** — the Morning Pulse field validates, stores the address and confirms inline;
+  Watch Live and Newsletters open the broadcast and membership dialogs; section links deep-link the
+  homepage filters; Privacy, Terms and Cookie links land on real policy sections at `/about`.
 
 ## Notes on honesty
 
