@@ -97,5 +97,6 @@ export const defaultSources = () =>
 /** Public relays used only if the deployed `/api/wire` proxy is unavailable. */
 export const PUBLIC_PROXIES = [
   'https://api.allorigins.win/raw?url={url}',
+  'https://api.codetabs.com/v1/proxy?quest={url}',
   'https://corsproxy.io/?url={url}',
 ];

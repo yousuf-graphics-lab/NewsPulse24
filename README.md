@@ -264,7 +264,7 @@ has run — every switch below belongs to the operator.
    channel* and the agent reads the `<link rel="alternate">` tags and common feed paths, then
    verifies each candidate before offering it.
    Requests go through a proxy chain — the deployed `api/wire.js` first, then public relays
-   (allorigins, corsproxy), then a direct request — and each hop's failure is recorded. The proxy
+   (allorigins, codetabs, corsproxy), then a direct request — and each hop's failure is recorded. The proxy
    only speaks http(s), refuses private and link-local addresses, caps the response at 1.5 MB,
    times out after 12 s and only passes XML or JSON back with `s-maxage=300`. `vite dev` and
    `vite preview` serve the same endpoint from `scripts/vite-wire.mjs`.

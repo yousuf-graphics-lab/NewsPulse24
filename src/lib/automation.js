@@ -278,17 +278,33 @@ const FEED_HEADERS = {
   accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, application/json;q=0.9, */*;q=0.5',
 };
 
-const proxyChain = (config) => {
+const proxyChain = (config, preferred = '') => {
   const templates = [config.proxy, ...(config.proxyFallbacks || [])]
     .filter((value) => typeof value === 'string' && value.trim())
     .map((value) => value.trim());
   const unique = [...new Set(templates)];
   // A direct request goes last: some feeds do send CORS headers.
-  return [...unique, '{url}'];
+  const chain = [...unique, '{url}'];
+  if (!preferred) return chain;
+  // Start with whatever route answered last time for this channel.
+  const index = chain.findIndex((template) => hopLabel(template) === preferred);
+  return index > 0 ? [chain[index], ...chain.filter((_, i) => i !== index)] : chain;
 };
 
 const materialise = (template, url) =>
   template.includes('{url}') ? template.replace('{url}', encodeURIComponent(url)) : template;
+
+const hopLabel = (template) => {
+  if (template === '{url}') return 'direct';
+  try {
+    if (template.startsWith('/')) return 'site proxy';
+    return sourceHost(template.split('{url}')[0]);
+  } catch {
+    return 'relay';
+  }
+};
+
+const hopTimeout = (template) => (template === '{url}' ? 10_000 : template.startsWith('/') ? 12_000 : 9_000);
 
 const requestText = async (target, timeoutMs) => {
   const controller = new AbortController();
@@ -325,13 +341,13 @@ const requestText = async (target, timeoutMs) => {
  * Returns `{ document, via }` or throws an Error with every attempt spelled out.
  */
 export const fetchFeedDetailed = async (source, config = readAutomation()) => {
-  const chain = proxyChain(config);
+  const chain = proxyChain(config, source.preferredVia);
   const failures = [];
 
   for (const template of chain) {
-    const label = template === '{url}' ? 'direct' : sourceHost(materialise(template, 'https://example.com'));
+    const label = hopLabel(template);
     try {
-      const text = await requestText(materialise(template, source.url), 12_000);
+      const text = await requestText(materialise(template, source.url), hopTimeout(template));
       const document = parseFeedDocument(text);
       if (!document.items.length) throw new Error('the feed listed no items');
       return { ...document, via: label };
@@ -819,6 +835,7 @@ export const runAutomationCycle = async ({ manual = false, sourceId = null } = {
               : 'empty feed',
           lastCount: items.length,
           lastVia: via,
+          preferredVia: via,
           lastError: '',
           name: source.name || feedTitle || source.name,
         });

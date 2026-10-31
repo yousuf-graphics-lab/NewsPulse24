@@ -141,6 +141,9 @@ const normaliseAutomation = (raw) => {
         lastFetchedAt: source.lastFetchedAt || null,
         lastStatus: typeof source.lastStatus === 'string' ? source.lastStatus.slice(0, 120) : '',
         lastCount: asNumber(source.lastCount, 0, 0, 500),
+        lastVia: typeof source.lastVia === 'string' ? source.lastVia.slice(0, 60) : '',
+        preferredVia: typeof source.preferredVia === 'string' ? source.preferredVia.slice(0, 60) : '',
+        lastError: typeof source.lastError === 'string' ? source.lastError.slice(0, 240) : '',
       }))
       .slice(0, 30),
     queue: asArray(raw.queue)
