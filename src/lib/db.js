@@ -25,6 +25,7 @@
  * receive, which is the seam a server-side sync would plug into.
  */
 import { AUTHORS, STORIES } from '../data/news';
+import { defaultSources, PUBLIC_PROXIES } from './feedCatalog';
 
 export const DB_KEY = 'newspulse24:db:v3';
 const PREVIOUS_KEY = 'newspulse24:db:v2';
@@ -74,20 +75,25 @@ const MAX_SEEN = 400;
 const MAX_AGENT_LOG = 80;
 
 const defaultAutomation = () => ({
-  enabled: false,
-  mode: 'approval',
+  rev: 2,
+  enabled: true,
+  mode: 'auto',
   intervalMinutes: 20,
   maxPerHour: 3,
-  minScore: 45,
+  minScore: 50,
+  maxAgeHours: 36,
+  enrich: true,
   proxy: '/api/wire?url={url}',
+  proxyFallbacks: PUBLIC_PROXIES,
   useSourceImages: false,
   sections: ['World', 'Business', 'Technology', 'Science', 'Health', 'Sports', 'Entertainment', 'Opinion', 'Lifestyle'],
-  sources: [],
+  sources: defaultSources(),
   queue: [],
   seen: [],
   log: [],
   stats: { runs: 0, ingested: 0, published: 0, rejected: 0, lastRunAt: null },
   lastRunAt: null,
+  diagnostics: null,
 });
 
 const asNumber = (value, fallback, min, max) => {
@@ -100,17 +106,30 @@ const normaliseAutomation = (raw) => {
   const base = defaultAutomation();
   if (!raw || typeof raw !== 'object') return base;
   const stats = raw.stats && typeof raw.stats === 'object' ? raw.stats : {};
+  const storedSources = asArray(raw.sources);
+  // A record written before rev 2 shipped the agent switched off with no
+  // channels, which is why it never published. Upgrade it once to the new
+  // defaults (on, auto, catalogue seeded); after that the operator is in charge.
+  const legacy = raw.rev === undefined;
   return {
     ...base,
-    enabled: raw.enabled === true,
-    mode: raw.mode === 'auto' ? 'auto' : 'approval',
+    rev: 2,
+    enabled: legacy ? base.enabled : raw.enabled === undefined ? base.enabled : raw.enabled === true,
+    mode: legacy ? base.mode : raw.mode === 'auto' || raw.mode === 'approval' ? raw.mode : base.mode,
     intervalMinutes: asNumber(raw.intervalMinutes, base.intervalMinutes, 5, 720),
     maxPerHour: asNumber(raw.maxPerHour, base.maxPerHour, 1, 20),
     minScore: asNumber(raw.minScore, base.minScore, 0, 100),
+    maxAgeHours: asNumber(raw.maxAgeHours, base.maxAgeHours, 1, 168),
+    enrich: raw.enrich === undefined ? base.enrich : raw.enrich === true,
     proxy: typeof raw.proxy === 'string' ? raw.proxy.slice(0, 300) : base.proxy,
+    proxyFallbacks: asArray(raw.proxyFallbacks)
+      .filter((item) => typeof item === 'string' && item)
+      .slice(0, 6),
     useSourceImages: raw.useSourceImages === true,
     sections: asArray(raw.sections).filter((item) => typeof item === 'string').slice(0, 12),
-    sources: asArray(raw.sources)
+    // A database written before the catalogue shipped has no sources; seed it
+    // once so the agent has something to read on its very first run.
+    sources: (storedSources.length ? storedSources : base.sources)
       .filter((source) => source && typeof source.url === 'string' && source.url)
       .map((source) => ({
         id: String(source.id || source.url),
@@ -131,6 +150,8 @@ const normaliseAutomation = (raw) => {
     log: asArray(raw.log)
       .filter((entry) => entry && entry.message)
       .slice(0, MAX_AGENT_LOG),
+    diagnostics:
+      raw.diagnostics && typeof raw.diagnostics === 'object' ? raw.diagnostics : null,
     stats: {
       runs: asNumber(stats.runs, 0, 0, 1e9),
       ingested: asNumber(stats.ingested, 0, 0, 1e9),

@@ -252,36 +252,60 @@ than two minutes.
 ### The wire agent
 
 `src/lib/automation.js` is the always-on half of the newsroom. It runs inside the app (first tick
-4 s after load, then every 30 s, honouring whatever cadence the operator set) and can be started by
-hand from **Wire agent → Run now**.
+3 s after load, then every 20 s, honouring whatever cadence the operator set), can be started by hand
+from **Wire agent → Run now**, and is **on by default**: a new install arrives with ten live
+channels and auto-publish selected, so the front page fills itself. Nothing is hard-coded once it
+has run — every switch below belongs to the operator.
 
-1. **Collect** — pulls the enabled public RSS / Atom / JSON feeds from `AUTOMATION_PRESETS`
-   (BBC World, Reuters-style agency feeds, Guardian, Al Jazeera, TechCrunch, ESPN, Hacker News and
-   more), plus any feed the operator adds. Requests go through `api/wire.js`, a serverless proxy
-   that only speaks http(s), refuses private and link-local addresses, caps the response at 1.5 MB,
-   times out after 12 s and only passes XML or JSON back with `s-maxage=300`.
-2. **Filter** — drops anything under 18 characters of headline or 80 characters of summary, dedupes
-   by URL hash against the last 400 seen items, and scores each candidate 0–100 on freshness,
-   summary depth, section confidence and source trust. Anything under the operator's floor is
-   discarded.
-3. **Compose** — derives the headline and standfirst, an extractive body (paragraphs, a subheading
-   and a key-points list from what the source published, always closed with a link back to the
-   original), a section from keyword scoring, tags from entities in the copy, a lead image from the
-   newsroom library (or the source's own image when enabled), and SEO title/description length-capped
-   to 60 / 155 characters. Every draft carries `attribution { name, url, host, automated: true }`.
-4. **Publish** — in **Approval** mode drafts wait in the queue for *Publish* or *Reject*; in
-   **Auto-publish** mode they go live immediately, still rate-limited to N stories per hour.
+1. **Collect** — reads the enabled public feeds in `src/lib/feedCatalog.js` (31 channels across
+   nine desks: BBC, Guardian, Al Jazeera, NPR, DW, CNBC, MarketWatch, The Verge, Ars Technica,
+   TechCrunch, Hacker News, NASA, ScienceDaily, Space.com, STAT, ESPN, Variety and more), plus any
+   feed you add. A channel can be **discovered** instead of typed: paste a news site into *Find a
+   channel* and the agent reads the `<link rel="alternate">` tags and common feed paths, then
+   verifies each candidate before offering it.
+   Requests go through a proxy chain — the deployed `api/wire.js` first, then public relays
+   (allorigins, corsproxy), then a direct request — and each hop's failure is recorded. The proxy
+   only speaks http(s), refuses private and link-local addresses, caps the response at 1.5 MB,
+   times out after 12 s and only passes XML or JSON back with `s-maxage=300`. `vite dev` and
+   `vite preview` serve the same endpoint from `scripts/vite-wire.mjs`.
+2. **Enrich** — for thin feed items (under 160 characters of summary) the agent fetches the linked
+   article, if the **Read the linked article** rule is on, and folds its description and opening
+   paragraphs into the source copy. Six articles per run, 9 s each, skipped on failure.
+3. **Filter** — parses RSS 2.0, RSS 1.0/RDF, Atom and JSON Feed; drops anything outside the
+   freshness window (36 h by default), under 18 characters of headline or 80 of summary; dedupes by
+   canonical URL (tracking parameters stripped) against the last 400 seen items and the live queue;
+   then scores each candidate 0–100 on recency, copy depth, section confidence, image match and
+   channel trust.
+4. **Compose** — cleans the headline (drops the outlet suffix, tames SHOUTING, caps the length),
+   writes the standfirst from the lead sentence, builds a multi-paragraph extractive body with a
+   **Key points** list, files the story by whole-word keyword scoring (so `ai` never matches
+   “said”), adds tags, picks a lead image from the newsroom library (or the publisher's own image
+   when that rule is on), and caps SEO title/description at 60 / 155 characters. Every draft carries
+   `attribution { name, url, host, automated: true }` and a visible “assembled by the wire agent”
+   line.
+5. **Publish** — in **Approval** mode drafts wait in the queue for *Publish*, *Edit* or *Reject*;
+   in **Auto-publish** mode they go live immediately, rate-limited to N stories per hour (3 by
+   default) and bounded by the desk allow-list.
+
+**Diagnostics.** Every run stores a report: which channels were read, how many items each returned,
+how many were queued or skipped and why, which route answered, and the failure text when a channel
+could not be reached — shown under *Last run* with a **Check route** button. When every channel
+fails before the parser sees a feed, the panel says so plainly: that is a transport problem (a
+hosted preview sandbox with no outbound internet), not a parsing one, and it resolves on a host that
+can reach publishers.
+
+From the panel you control: master switch, publishing mode, cadence, hourly cap, score floor,
+freshness window, desk allow-list, article enrichment, source images, proxy template, per-channel
+on/off and per-channel test, plus catalogue/discovery, and per-item edit, publish, reject and remove.
 
 There is no language model in this bundle, so the copy is extractive and attributed — the agent
-never invents prose and never claims to. Everything is switchable from the panel: master switch,
-publishing mode, cadence, hourly cap, score floor, section allow-list, per-source enable/trust,
-source-image use, proxy URL, plus per-item edit, reject and remove. A wire story on the public site
-shows a **Wire report** strip naming the original outlet and linking to it (`rel="noreferrer nofollow"`).
+never invents prose and never claims to. A wire story on the public site shows a **Wire report**
+strip naming the original outlet and linking to it (`rel="noreferrer nofollow"`).
 
-Like the rest of the panel, the agent runs in the browser: it works while any tab is open. An
-always-on newsroom wants the same `automation.js` running on a server cron with a shared database —
-the module is framework-free and takes a fetch implementation, so it drops in front of
-`api/wire.js` unchanged.
+Like the rest of the panel, the agent runs in the browser: it works while any tab is open, with a
+cross-tab lock so two tabs never run the same cycle twice. An always-on newsroom wants the same
+`automation.js` running on a server cron with a shared database — the module is framework-free and
+takes a fetch implementation, so it drops in front of `api/wire.js` unchanged.
 
 ### The database
 
@@ -289,7 +313,7 @@ the module is framework-free and takes a fetch implementation, so it drops in fr
 schema v3):
 
 - collections for `posts`, `hidden` takedowns, `settings`, `reads`, `staff`, `audit` and the
-  `automation` state (sources, queue, seen hashes, log, stats);
+  `automation` state (channels, queue, seen hashes, log, stats, last-run diagnostics);
 - forward migration from the v2 and v1 keys (`newspulse24:db:v2`, `newspulse24:content:v1`,
   `reads:v1`, `admin:audit`) the first time the app loads;
 - one atomic write per mutation with quota-aware errors returned to the editor;

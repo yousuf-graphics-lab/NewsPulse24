@@ -1,120 +1,66 @@
 /**
  * The wire agent.
  *
- * It pulls published items from real RSS / Atom / JSON feeds, de-duplicates
- * them, scores them, and assembles a publishable story from what the source
- * actually said: headline, standfirst, body blocks, section, tags, SEO fields
- * and a matching image from the newsroom library.
+ * It pulls published items from real RSS / Atom / RDF / JSON feeds,
+ * de-duplicates them, optionally reads the article page for more context,
+ * scores them, and assembles a publishable story from what the source actually
+ * said: headline, standfirst, body blocks, key points, section, tags, SEO
+ * fields and a matching image.
  *
  * What it is NOT: a generative writer. There is no language model in this
  * bundle, so the copy it assembles is extractive — it reuses the source
- * summary and says so, with a link back to the original report. Images come
- * from the local library, not an image model. Everything it publishes is
- * attributed, marked `automated`, and can be queued for approval instead of
- * going live (the default).
+ * summary (and, when enrichment is on, the opening paragraphs of the linked
+ * article) and says so, with a link back to the original report. Images come
+ * from the local library, or the publisher's own image when that is enabled.
  *
- * Runtime: it runs in this browser. A cycle fires every 30 seconds while a tab
- * is open and the agent is enabled, and only when the configured interval has
- * elapsed. An always-on newsroom needs the same logic on a server cron against
- * a hosted database — see the README.
+ * Runtime: it runs in this browser. A tick fires every 20 seconds while a tab
+ * is open and the agent is enabled, and starts a cycle once the interval has
+ * elapsed. A cross-tab lock stops two tabs running the same cycle twice. An
+ * always-on newsroom needs the same logic on a server cron against a hosted
+ * database — see the README.
  *
  * Fetching: browsers cannot read most publishers' feeds directly (CORS), so
- * requests go through the proxy template in settings. `/api/wire` ships with
- * this repo and works on Vercel; anything else you deploy can serve the same
- * `?url=` contract.
+ * requests go through the proxy chain in settings: the deployed `/api/wire`
+ * first, then any fallback relays, then a direct request. Each hop is tried in
+ * turn and failures are reported per source in the panel.
  */
 import { AUTHORS, CATEGORIES } from '../data/news';
 import { read, write } from './db';
+import { FEED_CATALOG, PUBLIC_PROXIES, sourceFromChannel } from './feedCatalog';
 import { publish, slugTaken } from './contentStore';
 
 /* ------------------------------------------------------------------ presets */
 
-export const AUTOMATION_PRESETS = [
-  {
-    id: 'preset-bbc-world',
-    name: 'BBC World',
-    url: 'https://feeds.bbci.co.uk/news/world/rss.xml',
-    section: 'World',
-    weight: 1.4,
-  },
-  {
-    id: 'preset-bbc-business',
-    name: 'BBC Business',
-    url: 'https://feeds.bbci.co.uk/news/business/rss.xml',
-    section: 'Business',
-    weight: 1.2,
-  },
-  {
-    id: 'preset-bbc-tech',
-    name: 'BBC Technology',
-    url: 'https://feeds.bbci.co.uk/news/technology/rss.xml',
-    section: 'Technology',
-    weight: 1.2,
-  },
-  {
-    id: 'preset-guardian-world',
-    name: 'The Guardian · World',
-    url: 'https://www.theguardian.com/world/rss',
-    section: 'World',
-    weight: 1.2,
-  },
-  {
-    id: 'preset-guardian-science',
-    name: 'The Guardian · Science',
-    url: 'https://www.theguardian.com/science/rss',
-    section: 'Science',
-    weight: 1,
-  },
-  {
-    id: 'preset-aljazeera',
-    name: 'Al Jazeera',
-    url: 'https://www.aljazeera.com/xml/rss/all.xml',
-    section: 'World',
-    weight: 1.1,
-  },
-  {
-    id: 'preset-nasa',
-    name: 'NASA',
-    url: 'https://www.nasa.gov/feed/',
-    section: 'Science',
-    weight: 1,
-  },
-  {
-    id: 'preset-espn',
-    name: 'ESPN',
-    url: 'https://www.espn.com/espn/rss/news',
-    section: 'Sports',
-    weight: 1,
-  },
-];
+export const AUTOMATION_PRESETS = FEED_CATALOG;
+export { FEED_CATALOG, PUBLIC_PROXIES };
 
 const IMAGE_LIBRARY = [
-  { file: 'hero-earth.jpg', alt: 'Planet Earth at night wrapped in glowing data networks', tags: ['world', 'global', 'climate', 'united nations', 'diplomacy', 'summit'] },
-  { file: 'capitol.jpg', alt: 'The dome of a national legislature lit at dusk', tags: ['politics', 'election', 'parliament', 'congress', 'senate', 'government', 'policy', 'law'] },
-  { file: 'markets.jpg', alt: 'Traders and screens on a busy trading floor', tags: ['markets', 'stocks', 'economy', 'inflation', 'rates', 'bank', 'trade', 'tariff', 'oil', 'currency'] },
-  { file: 'ai-robot.jpg', alt: 'A humanoid robot beside a person in a laboratory', tags: ['ai', 'artificial intelligence', 'robot', 'machine learning', 'chip', 'software', 'semiconductor'] },
-  { file: 'robot-hand.jpg', alt: 'A robotic hand reaching towards a human hand', tags: ['robot', 'automation', 'research', 'engineering'] },
-  { file: 'rocket.jpg', alt: 'A rocket lifting off through a cloud of exhaust', tags: ['space', 'rocket', 'launch', 'satellite', 'mars', 'moon', 'astronomy', 'nasa', 'spacex'] },
-  { file: 'medical.jpg', alt: 'A clinician reviewing a scan in a research hospital', tags: ['health', 'hospital', 'vaccine', 'virus', 'disease', 'medicine', 'cancer', 'drug', 'who'] },
-  { file: 'football.jpg', alt: 'A footballer striking the ball under stadium lights', tags: ['football', 'soccer', 'sport', 'league', 'cup', 'olympic', 'tennis', 'cricket', 'match'] },
-  { file: 'live-studio.jpg', alt: 'The NewsPulse 24 broadcast studio in action', tags: ['media', 'broadcast', 'television', 'streaming', 'film'] },
-  { file: 'summit.jpg', alt: 'Delegates gathered in a summit hall', tags: ['summit', 'conference', 'talks', 'treaty', 'agreement', 'cop'] },
+  { file: 'hero-earth.jpg', alt: 'Planet Earth at night wrapped in glowing data networks', tags: ['world', 'global', 'climate', 'united nations', 'diplomacy', 'summit', 'earth', 'planet'] },
+  { file: 'capitol.jpg', alt: 'The dome of a national legislature lit at dusk', tags: ['politics', 'election', 'parliament', 'congress', 'senate', 'government', 'policy', 'law', 'minister', 'president'] },
+  { file: 'markets.jpg', alt: 'Traders and screens on a busy trading floor', tags: ['markets', 'stocks', 'economy', 'inflation', 'rates', 'bank', 'trade', 'tariff', 'oil', 'currency', 'investors', 'shares'] },
+  { file: 'ai-robot.jpg', alt: 'A humanoid robot beside a person in a laboratory', tags: ['ai', 'artificial intelligence', 'robot', 'machine learning', 'chip', 'software', 'semiconductor', 'model', 'openai', 'google'] },
+  { file: 'robot-hand.jpg', alt: 'A robotic hand reaching towards a human hand', tags: ['automation', 'research', 'engineering', 'lab', 'scientists'] },
+  { file: 'rocket.jpg', alt: 'A rocket lifting off through a cloud of exhaust', tags: ['space', 'rocket', 'launch', 'satellite', 'mars', 'moon', 'astronomy', 'nasa', 'spacex', 'orbit'] },
+  { file: 'medical.jpg', alt: 'A clinician reviewing a scan in a research hospital', tags: ['health', 'hospital', 'vaccine', 'virus', 'disease', 'medicine', 'cancer', 'drug', 'who', 'patients', 'mental'] },
+  { file: 'football.jpg', alt: 'A footballer striking the ball under stadium lights', tags: ['football', 'soccer', 'sport', 'league', 'cup', 'olympic', 'tennis', 'cricket', 'match', 'coach', 'striker'] },
+  { file: 'live-studio.jpg', alt: 'The NewsPulse 24 broadcast studio in action', tags: ['media', 'broadcast', 'television', 'streaming', 'film', 'series', 'music', 'album', 'actor'] },
+  { file: 'summit.jpg', alt: 'Delegates gathered in a summit hall', tags: ['summit', 'conference', 'talks', 'treaty', 'agreement', 'cop', 'delegates', 'g20'] },
 ];
 
 const SECTION_KEYWORDS = {
-  World: ['world', 'global', 'nation', 'war', 'conflict', 'ceasefire', 'border', 'refugee', 'united nations', 'summit', 'diplomat', 'election', 'sanction', 'government'],
-  Business: ['market', 'economy', 'inflation', 'rate', 'stock', 'bank', 'trade', 'tariff', 'company', 'earnings', 'oil', 'currency', 'gdp', 'investor', 'merger'],
-  Technology: ['ai', 'artificial intelligence', 'technology', 'software', 'chip', 'semiconductor', 'robot', 'app', 'platform', 'cyber', 'data', 'startup', 'device'],
-  Science: ['science', 'space', 'nasa', 'rocket', 'satellite', 'research', 'study', 'climate', 'physics', 'mars', 'moon', 'discovery', 'species'],
-  Health: ['health', 'hospital', 'disease', 'virus', 'vaccine', 'medicine', 'cancer', 'who', 'drug', 'mental', 'outbreak', 'patients'],
-  Sports: ['football', 'soccer', 'sport', 'league', 'cup', 'match', 'olympic', 'tennis', 'cricket', 'formula', 'nba', 'fifa', 'coach', 'player'],
-  Entertainment: ['film', 'movie', 'music', 'album', 'television', 'series', 'actor', 'festival', 'award', 'studio', 'hollywood', 'streaming'],
-  Lifestyle: ['travel', 'food', 'design', 'home', 'fashion', 'wellness', 'city', 'culture'],
-  Opinion: ['opinion', 'analysis', 'editorial', 'column', 'comment'],
+  World: ['world', 'global', 'nation', 'war', 'conflict', 'ceasefire', 'border', 'refugees', 'refugee', 'united nations', 'summit', 'diplomat', 'election', 'sanction', 'government', 'military', 'peace'],
+  Business: ['market', 'economy', 'inflation', 'rate', 'stock', 'bank', 'trade', 'tariff', 'company', 'earnings', 'oil', 'currency', 'gdp', 'investor', 'merger', 'jobs', 'retail'],
+  Technology: ['ai', 'artificial intelligence', 'technology', 'software', 'chip', 'semiconductor', 'robot', 'app', 'platform', 'cyber', 'data', 'startup', 'device', 'model', 'cloud'],
+  Science: ['science', 'space', 'nasa', 'rocket', 'satellite', 'research', 'study', 'climate', 'physics', 'mars', 'moon', 'discovery', 'species', 'scientists', 'orbit'],
+  Health: ['health', 'hospital', 'disease', 'virus', 'vaccine', 'medicine', 'cancer', 'clinicians', 'drug', 'mental', 'outbreak', 'patients', 'clinical'],
+  Sports: ['football', 'soccer', 'sport', 'league', 'cup', 'match', 'olympic', 'tennis', 'cricket', 'formula', 'nba', 'fifa', 'coach', 'player', 'striker'],
+  Entertainment: ['film', 'movie', 'music', 'album', 'television', 'series', 'actor', 'festival', 'award', 'studio', 'hollywood', 'streaming', 'box office'],
+  Lifestyle: ['travel', 'food', 'design', 'home', 'fashion', 'wellness', 'city', 'culture', 'recipe', 'hotel'],
+  Opinion: ['opinion', 'analysis', 'editorial', 'column', 'comment', 'why we', 'the case for'],
 };
 
 const STOPWORDS = new Set(
-  'the a an and or but if then than that this these those of in on for to from by with at as is are was were be been being it its his her their our your they we you he she i not no nor so such about into over under after before between during while against among within without up down out off again further once here there when where why how all any both each few more most other some only own same too very can will just should now new says said say also has have had do does did may might must could would one two three first last year years day days week weeks month months time times report reports reported according latest news update updates live'.split(
+  'the a an and or but if then than that this these those of in on for to from by with at as is are was were be been being it its his her their our your they we you he she i not no nor so such about into over under after before between during while against among within without up down out off again further once here there when where why how all any both each few more most other some only own same too very can will just should now new says said say also has have had do does did may might must could would one two three first last year years day days week weeks month months time times report reports reported according latest news update updates live told added said'.split(
     ' ',
   ),
 );
@@ -134,7 +80,7 @@ const pushLog = (draft, level, message) => ({
   automation: {
     ...draft.automation,
     log: [
-      { id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, at: new Date().toISOString(), level, message },
+      { id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, at: new Date().toISOString(), level, message: String(message).slice(0, 240) },
       ...draft.automation.log,
     ].slice(0, 80),
   },
@@ -161,7 +107,7 @@ const decodeEntities = (value) =>
     .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)));
 
 export const stripHtml = (value) =>
-  decodeEntities(String(value || '').replace(/<[^>]*>/g, ' '))
+  decodeEntities(String(value || '').replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]*>/g, ' '))
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -198,93 +144,250 @@ const uniqueSlug = (title) => {
   return `${base.slice(0, 56)}-${Date.now().toString(36).slice(-4)}`;
 };
 
+/** Trims tracking parameters so the same story from two feeds dedupes. */
+const canonicalUrl = (url) => {
+  try {
+    const parsed = new URL(String(url));
+    for (const key of [...parsed.searchParams.keys()]) {
+      if (/^(utm_|fbclid|gclid|mc_|ref|source|at_)/i.test(key)) parsed.searchParams.delete(key);
+    }
+    parsed.hash = '';
+    const path = parsed.pathname.replace(/\/+$/, '') || '/';
+    return `${parsed.origin}${path}${parsed.search}`;
+  } catch {
+    return String(url || '').trim();
+  }
+};
+
 /* -------------------------------------------------------------------- feeds */
+
+const tag = (node) => String(node?.tagName || '').split(':').pop().toLowerCase();
+
+const childText = (element, names) => {
+  if (!element) return '';
+  const wanted = names.map((name) => name.toLowerCase());
+  for (const child of element.children || []) {
+    if (wanted.includes(tag(child))) return child.textContent || '';
+  }
+  return '';
+};
+
+const firstAttribute = (element, names, attribute) => {
+  if (!element) return '';
+  const wanted = names.map((name) => name.toLowerCase());
+  for (const node of element.getElementsByTagName('*')) {
+    if (wanted.includes(tag(node))) {
+      const value = node.getAttribute(attribute);
+      if (value) return value;
+    }
+  }
+  return '';
+};
+
+const IMAGE_IN_HTML = [
+  /<img[^>]+src=["']([^"']+)["']/i,
+  /<media:(?:content|thumbnail)[^>]+url=["']([^"']+)["']/i,
+  /<enclosure[^>]+url=["']([^"']+)["']/i,
+];
+
+const imageFromHtml = (html) => {
+  for (const pattern of IMAGE_IN_HTML) {
+    const match = String(html || '').match(pattern);
+    if (match && /^https?:\/\//i.test(match[1])) return match[1];
+  }
+  return '';
+};
+
+/** Reads one <item> / <entry> node into the flat shape the agent understands. */
+const readItem = (node) => {
+  const description =
+    childText(node, ['description', 'summary', 'content', 'content:encoded', 'encoded']) || '';
+  const image =
+    firstAttribute(node, ['enclosure', 'content', 'thumbnail'], 'url') ||
+    imageFromHtml(description) ||
+    firstAttribute(node, ['image'], 'href');
+
+  const linkNode = [...(node.children || [])].find((child) => tag(child) === 'link');
+
+  return {
+    title: childText(node, ['title']) || '',
+    summary: description,
+    url:
+      linkNode?.getAttribute('href') ||
+      childText(node, ['link', 'guid', 'id']) ||
+      node.getAttribute('rdf:about') ||
+      '',
+    publishedAt:
+      childText(node, ['pubdate', 'published', 'updated', 'date', 'dc:date', 'issued', 'created']) || '',
+    image,
+  };
+};
 
 const parseXml = (text) => {
   const doc = new DOMParser().parseFromString(text, 'text/xml');
-  if (doc.querySelector('parsererror')) throw new Error('feed did not parse as XML');
-  const rssItems = [...doc.querySelectorAll('item')];
-  if (rssItems.length) {
-    return rssItems.map((item) => {
-      const textOf = (selector) => item.querySelector(selector)?.textContent || '';
-      const enclosure =
-        item.querySelector('enclosure')?.getAttribute('url') ||
-        item.querySelector('media\\:content, content')?.getAttribute('url') ||
-        item.querySelector('media\\:thumbnail')?.getAttribute('url') ||
-        '';
-      return {
-        title: textOf('title'),
-        summary:
-          item.getElementsByTagName('content:encoded')[0]?.textContent ||
-          textOf('description'),
-        url: textOf('link') || item.querySelector('link')?.getAttribute('href') || '',
-        publishedAt: textOf('pubDate') || textOf('dc\\:date'),
-        image: enclosure,
-      };
-    });
-  }
-  const atomItems = [...doc.querySelectorAll('entry')];
-  return atomItems.map((entry) => ({
-    title: entry.querySelector('title')?.textContent || '',
-    summary:
-      entry.querySelector('summary')?.textContent ||
-      entry.querySelector('content')?.textContent ||
-      '',
-    url: entry.querySelector('link')?.getAttribute('href') || '',
-    publishedAt: entry.querySelector('published')?.textContent || entry.querySelector('updated')?.textContent || '',
-    image: entry.querySelector('media\\:thumbnail')?.getAttribute('url') || '',
-  }));
+  if (doc.querySelector('parsererror')) throw new Error('the feed is not valid XML');
+
+  const nodes = [
+    ...doc.getElementsByTagName('item'),
+    ...doc.getElementsByTagName('entry'),
+  ];
+  if (!nodes.length) throw new Error('the feed contains no items');
+
+  const feedTitle =
+    doc.querySelector('channel > title')?.textContent || doc.querySelector('feed > title')?.textContent || '';
+
+  return {
+    feedTitle: stripHtml(feedTitle),
+    items: nodes.map(readItem).filter((item) => item.title && item.url),
+  };
 };
 
 const parseJsonFeed = (text) => {
   const data = JSON.parse(text);
-  const items = Array.isArray(data) ? data : data.items || data.entries || [];
-  return items.map((item) => ({
-    title: item.title || item.name || '',
-    summary: item.summary || item.description || item.content_text || item.content || '',
-    url: item.url || item.link || item.external_url || '',
-    publishedAt: item.date_published || item.pubDate || item.published || item.created || '',
-    image: item.image || item.thumbnail || item.enclosure?.link || item.enclosure?.url || '',
-  }));
+  const items = Array.isArray(data) ? data : data.items || data.entries || data.results || [];
+  if (!Array.isArray(items)) throw new Error('the JSON feed has no items');
+  return {
+    feedTitle: data.title || data.name || '',
+    items: items
+      .map((item) => ({
+        title: item.title || item.name || item.headline || '',
+        summary: item.summary || item.description || item.content_text || stripHtml(item.content_html) || item.content || '',
+        url: item.url || item.link || item.external_url || item.permalink || '',
+        publishedAt: item.date_published || item.pubDate || item.published || item.created || item.date || '',
+        image: item.image || item.banner_image || item.thumbnail || item.enclosure?.link || item.enclosure?.url || '',
+      }))
+      .filter((item) => item.title && item.url),
+  };
 };
 
-export const parseFeed = (text) => {
+export const parseFeedDocument = (text) => {
   const body = String(text || '').trim();
-  if (!body) throw new Error('the feed returned nothing');
+  if (!body) throw new Error('the source returned an empty response');
+  if (/^<(!doctype|html)/i.test(body.slice(0, 200))) {
+    throw new Error('that URL returned a web page, not a feed');
+  }
   if (body.startsWith('{') || body.startsWith('[')) return parseJsonFeed(body);
   return parseXml(body);
 };
 
-export const fetchFeed = async (source, proxyTemplate = '') => {
-  const proxy = String(proxyTemplate || '').trim();
-  const target = proxy.includes('{url}')
-    ? proxy.replace('{url}', encodeURIComponent(source.url))
-    : source.url;
+export const parseFeed = (text) => parseFeedDocument(text).items;
+
+/* ---------------------------------------------------------------- transport */
+
+const FEED_HEADERS = {
+  accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, application/json;q=0.9, */*;q=0.5',
+};
+
+const proxyChain = (config) => {
+  const templates = [config.proxy, ...(config.proxyFallbacks || [])]
+    .filter((value) => typeof value === 'string' && value.trim())
+    .map((value) => value.trim());
+  const unique = [...new Set(templates)];
+  // A direct request goes last: some feeds do send CORS headers.
+  return [...unique, '{url}'];
+};
+
+const materialise = (template, url) =>
+  template.includes('{url}') ? template.replace('{url}', encodeURIComponent(url)) : template;
+
+const requestText = async (target, timeoutMs) => {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15_000);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(target, {
       signal: controller.signal,
-      headers: { accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, application/json;q=0.9, */*;q=0.5' },
+      headers: FEED_HEADERS,
       mode: 'cors',
       credentials: 'omit',
       cache: 'no-store',
     });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.ok) {
+      let detail = '';
+      try {
+        const payload = await response.clone().json();
+        detail = payload?.error ? ` — ${payload.error}` : '';
+      } catch {
+        /* not JSON */
+      }
+      throw new Error(`HTTP ${response.status}${detail}`);
+    }
     const text = await response.text();
-    if (text.length > 1_500_000) throw new Error('feed too large');
-    return parseFeed(text);
-  } catch (error) {
-    const reason =
-      error.name === 'AbortError'
-        ? 'request timed out'
-        : /Failed to fetch|NetworkError|Load failed/i.test(error.message)
-          ? 'blocked by CORS — configure the wire proxy'
-          : error.message;
-    throw new Error(reason);
+    if (!text) throw new Error('empty response');
+    if (text.length > 3_000_000) throw new Error('response too large');
+    return text;
   } finally {
-    clearTimeout(timeout);
+    clearTimeout(timer);
   }
+};
+
+/**
+ * Fetches one source through the proxy chain.
+ * Returns `{ document, via }` or throws an Error with every attempt spelled out.
+ */
+export const fetchFeedDetailed = async (source, config = readAutomation()) => {
+  const chain = proxyChain(config);
+  const failures = [];
+
+  for (const template of chain) {
+    const label = template === '{url}' ? 'direct' : sourceHost(materialise(template, 'https://example.com'));
+    try {
+      const text = await requestText(materialise(template, source.url), 12_000);
+      const document = parseFeedDocument(text);
+      if (!document.items.length) throw new Error('the feed listed no items');
+      return { ...document, via: label };
+    } catch (error) {
+      const reason =
+        error.name === 'AbortError'
+          ? 'timed out'
+          : /Failed to fetch|NetworkError|Load failed/i.test(error.message)
+            ? 'blocked (CORS or network)'
+            : error.message;
+      failures.push(`${label}: ${reason}`);
+    }
+  }
+
+  throw new Error(failures.join(' · ') || 'no route to the source');
+};
+
+export const fetchFeed = async (source, config = readAutomation()) => {
+  const { items } = await fetchFeedDetailed(source, config);
+  return items;
+};
+
+/** Pulls one article page and lifts its lead image and opening paragraphs. */
+export const enrichArticle = async (item, config = readAutomation()) => {
+  if (!/^https?:\/\//i.test(item.url || '')) return item;
+  for (const template of proxyChain(config)) {
+    try {
+      const html = await requestText(materialise(template, item.url), 9_000);
+      if (!/<html|<article|<p/i.test(html)) continue;
+
+      const ogDescription = html.match(/property=["']og:description["'][^>]+content=["']([^"']+)/i)?.[1] || '';
+      const ogImage = html.match(/property=["']og:image["'][^>]+content=["']([^"']+)/i)?.[1] || '';
+      const paragraphs = [...html.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)]
+        .map((match) => stripHtml(match[1]))
+        .filter((text) => text.length > 70 && !/cookie|subscribe|newsletter|sign up|advertisement/i.test(text))
+        .slice(0, 6)
+        .join(' ');
+
+      const extra = stripHtml(ogDescription);
+      const summary = [stripHtml(item.summary), extra, paragraphs]
+        .filter(Boolean)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .slice(0, 6_000);
+
+      return {
+        ...item,
+        summary: summary.length > (item.summary || '').length ? summary : item.summary,
+        image: item.image || ogImage,
+        enriched: true,
+      };
+    } catch {
+      /* try the next hop */
+    }
+  }
+  return item;
 };
 
 /* --------------------------------------------------------------- generation */
@@ -300,34 +403,50 @@ const keywordList = (text) => {
   return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([word]) => word);
 };
 
+/** Matches a keyword as whole words, so `ai` never fires inside “said”. */
+const wordMatcher = (text) => {
+  const haystack = ` ${stripHtml(text)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s'-]/g, ' ')
+    .replace(/\s+/g, ' ')} `;
+  return (keyword) => {
+    const needle = keyword.toLowerCase();
+    return needle.includes(' ')
+      ? haystack.includes(` ${needle} `)
+      : haystack.includes(` ${needle} `) || haystack.includes(` ${needle}s `) || haystack.includes(` ${needle}-`);
+  };
+};
+
 const classify = (text, sourceSection) => {
-  const haystack = ` ${stripHtml(text).toLowerCase()} `;
+  const has = wordMatcher(text);
   const scores = {};
   for (const [section, keywords] of Object.entries(SECTION_KEYWORDS)) {
-    scores[section] = keywords.reduce(
-      (total, keyword) => total + (haystack.includes(keyword) ? 1 : 0),
-      0,
-    );
+    scores[section] = keywords.reduce((total, keyword) => total + (has(keyword) ? 1 : 0), 0);
   }
   if (sourceSection && CATEGORIES.includes(sourceSection)) {
-    scores[sourceSection] = (scores[sourceSection] || 0) + 1.5;
+    scores[sourceSection] = (scores[sourceSection] || 0) + 2;
   }
   const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1]);
   const [section, score] = ranked[0] || ['World', 0];
-  const confidence = Math.min(1, Number(score) / 4);
-  return { section: score > 0 ? section : 'World', confidence };
+  return { section: score > 0 ? section : 'World', confidence: Math.min(1, Number(score) / 4) };
 };
 
-const pickImage = (text) => {
-  const haystack = stripHtml(text).toLowerCase();
+const pickImage = (text, seed = '') => {
+  const has = wordMatcher(text);
   let best = IMAGE_LIBRARY[0];
   let bestScore = 0;
   for (const image of IMAGE_LIBRARY) {
-    const score = image.tags.reduce((total, tag) => total + (haystack.includes(tag) ? 1 : 0), 0);
+    const score = image.tags.reduce((total, keyword) => total + (has(keyword) ? 1 : 0), 0);
     if (score > bestScore) {
       best = image;
       bestScore = score;
     }
+  }
+  if (bestScore === 0) {
+    // No keyword match: rotate through the library so the front page does not
+    // repeat one picture for every unmatched wire story.
+    const index = parseInt(hash(seed), 36) % IMAGE_LIBRARY.length;
+    best = IMAGE_LIBRARY[index];
   }
   return { path: `/images/${best.file}`, alt: best.alt, matched: bestScore > 0 };
 };
@@ -345,71 +464,104 @@ const authorFor = (section) =>
     Lifestyle: AUTHORS.amara,
   })[section] || AUTHORS.marcus;
 
-const titleCase = (value) => {
-  const cleaned = stripHtml(value).replace(/\s+[|–—-]\s+[^|–—-]{2,30}$/, '').trim();
-  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+const MINOR_WORDS = new Set(['a', 'an', 'and', 'as', 'at', 'but', 'by', 'for', 'in', 'of', 'on', 'or', 'the', 'to', 'with']);
+
+/** Cleans a feed headline: drops the outlet suffix, tames SHOUTING. */
+export const cleanTitle = (value) => {
+  let title = stripHtml(value)
+    .replace(/\s+[|·–—]\s+[^|·–—]{2,32}$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const letters = title.replace(/[^A-Za-z]/g, '');
+  const upperRatio = letters ? letters.replace(/[^A-Z]/g, '').length / letters.length : 0;
+  if (title.length > 12 && upperRatio > 0.75) {
+    const acronyms = new Set(title.split(/\s+/).filter((word) => /^[A-Z]{2,5}$/.test(word)));
+    title = title
+      .toLowerCase()
+      .split(' ')
+      .map((word, index) => {
+        if (acronyms.has(word.toUpperCase()) && word.length <= 5) return word.toUpperCase();
+        if (index === 0 || !MINOR_WORDS.has(word)) return word.charAt(0).toUpperCase() + word.slice(1);
+        return word;
+      })
+      .join(' ');
+  }
+  if (title.length > 132) {
+    const cut = title.slice(0, 128);
+    title = `${cut.slice(0, cut.lastIndexOf(' ') > 90 ? cut.lastIndexOf(' ') : 128).trim()}…`;
+  }
+  return title.charAt(0).toUpperCase() + title.slice(1);
 };
 
 /** Turns one feed item into a complete, attributed story draft. */
 export const buildDraft = (item, source, { useSourceImages = false } = {}) => {
-  const title = titleCase(item.title);
+  const title = cleanTitle(item.title);
   const summary = stripHtml(item.summary);
   if (!title || title.length < 18) return null;
   if (summary.length < 80) return null;
 
   const { section, confidence } = classify(`${title} ${summary}`, source.section);
-  const image = pickImage(`${title} ${summary}`);
-  const sentencesList = sentences(summary);
-  const lead = (sentencesList[0] || summary).slice(0, 240);
-  const standfirst =
-    lead.length >= 30 ? lead : `${title} — the latest from ${source.name}.`.slice(0, 220);
-  const bodySentences = sentencesList.slice(0, 5);
-  const body = [];
+  const image = pickImage(`${title} ${summary}`, item.url || title);
+  const list = sentences(summary);
+  const cleaned = list.length ? list : [summary];
+  const lead = (cleaned[0] || summary).slice(0, 240);
+  const standfirst = lead.length >= 30 ? lead : `${title} — the latest from ${source.name}.`.slice(0, 220);
 
-  const firstParagraph = bodySentences.slice(0, 2).join(' ');
-  const secondParagraph = bodySentences.slice(2, 5).join(' ');
-  if (firstParagraph) body.push({ type: 'p', text: firstParagraph });
-  if (secondParagraph) {
-    body.push({ type: 'h2', text: 'What else we know' });
-    body.push({ type: 'p', text: secondParagraph });
+  // Group the sentences into readable paragraphs rather than one wall of text.
+  const body = [];
+  const chunks = [cleaned.slice(0, 2), cleaned.slice(2, 4), cleaned.slice(4, 7)].filter((chunk) => chunk.length);
+  for (const chunk of chunks) body.push({ type: 'p', text: chunk.join(' ') });
+
+  const bullets = cleaned.slice(1, 4).map((sentence) => sentence.replace(/\s+/g, ' ').slice(0, 160));
+  if (bullets.length >= 3) {
+    body.push({ type: 'h2', text: 'Key points' });
+    body.push({ type: 'list', items: bullets });
   }
+
   body.push({
     type: 'p',
     text: `This dispatch was assembled by the NewsPulse 24 wire agent from a report published by ${source.name}. Read the original for the full account.`,
   });
 
-  const keywords = keywordList(`${title} ${summary}`).slice(0, 8);
-  const tags = [...new Set([section.toLowerCase(), ...keywords.slice(0, 5)])].slice(0, 8);
-  const publishedAt = item.publishedAt && !Number.isNaN(new Date(item.publishedAt).getTime())
-    ? new Date(item.publishedAt).toISOString()
-    : new Date().toISOString();
+  const keywords = keywordList(`${title} ${summary}`).slice(0, 10);
+  const tags = [...new Set([section.toLowerCase(), ...keywords.slice(0, 6)])].slice(0, 8);
+  const sourceDate = item.publishedAt ? new Date(item.publishedAt) : null;
+  const publishedAt =
+    sourceDate && !Number.isNaN(sourceDate.getTime())
+      ? new Date(Math.min(sourceDate.getTime(), Date.now())).toISOString()
+      : new Date().toISOString();
 
-  const host = sourceHost(source.url);
+  const host = sourceHost(item.url || source.url);
   const words = body
-    .map((block) => block.text || '')
+    .map((block) => block.text || (block.items || []).join(' ') || '')
     .join(' ')
     .split(/\s+/)
     .filter(Boolean).length;
 
+  const ageHours = (Date.now() - new Date(publishedAt).getTime()) / 3_600_000;
+  const freshness = ageHours < 2 ? 15 : ageHours < 6 ? 11 : ageHours < 12 ? 7 : ageHours < 24 ? 3 : 0;
+
   const score = Math.round(
     Math.min(
       100,
-      (summary.length >= 400 ? 30 : summary.length >= 200 ? 22 : 14) +
+      (summary.length >= 700 ? 30 : summary.length >= 380 ? 24 : summary.length >= 180 ? 17 : 10) +
         confidence * 25 +
         (image.matched ? 15 : 5) +
         Math.min(15, source.weight * 8) +
-        (bodySentences.length >= 3 ? 12 : 6),
+        (cleaned.length >= 4 ? 12 : cleaned.length >= 2 ? 8 : 3) +
+        freshness +
+        (item.enriched ? 4 : 0),
     ),
   );
 
-  const sourceImage =
-    useSourceImages && item.image && /^https:\/\//i.test(item.image) ? item.image : null;
+  const sourceImage = useSourceImages && item.image && /^https:\/\//i.test(item.image) ? item.image : null;
 
   const seoTitle = (title.length > 60 ? `${title.slice(0, 57)}…` : title).trim();
   const seoDescription = (standfirst.length > 155 ? `${standfirst.slice(0, 152)}…` : standfirst).trim();
 
   return {
-    id: `wire-${hash(`${item.url}|${title}`)}`,
+    id: `wire-${hash(`${canonicalUrl(item.url)}|${title}`)}`,
     slug: uniqueSlug(title),
     category: section,
     title,
@@ -435,29 +587,44 @@ export const buildDraft = (item, source, { useSourceImages = false } = {}) => {
 
 /* ----------------------------------------------------------------- ingestion */
 
-const dedupeKey = (item) => hash(`${(item.url || item.title || '').trim().toLowerCase()}`);
+const dedupeKey = (item) => hash(canonicalUrl(item.url || item.title || '').trim().toLowerCase());
 
 const withinQueue = (queue, key) =>
   queue.some((entry) => entry.key === key || entry.draft?.attribution?.url === key);
 
-export const ingestItems = (items, source, config) => {
+const isRecentEnough = (item, maxAgeHours) => {
+  if (!item.publishedAt) return true;
+  const time = new Date(item.publishedAt).getTime();
+  if (Number.isNaN(time)) return true;
+  return Date.now() - time <= maxAgeHours * 3_600_000;
+};
+
+/**
+ * Turns parsed items into queue entries.
+ * `items` may be pre-enriched; everything here is synchronous and pure apart
+ * from the single write at the end.
+ */
+export const ingestItems = (items, source, config, { limit = 20 } = {}) => {
   const state = read();
   const agent = state.automation;
   const seen = new Set(agent.seen);
   const accepted = [];
   const rejected = [];
 
-  for (const item of items.slice(0, 25)) {
+  for (const item of items.slice(0, limit)) {
     const key = dedupeKey(item);
     if (!key || seen.has(key)) continue;
+    if (!isRecentEnough(item, config.maxAgeHours ?? 36)) {
+      rejected.push({ item, reason: 'older than the freshness window' });
+      continue;
+    }
     const draft = buildDraft(item, source, { useSourceImages: config.useSourceImages });
     if (!draft) {
-      rejected.push({ item, reason: 'not enough source copy' });
+      rejected.push({ item, reason: 'not enough copy in the feed item' });
       continue;
     }
     if (withinQueue(agent.queue, key)) continue;
-    const allowed =
-      !config.sections?.length || config.sections.includes(draft.category);
+    const allowed = !config.sections?.length || config.sections.includes(draft.category);
     if (!allowed) {
       rejected.push({ item, reason: `section ${draft.category} is switched off` });
       continue;
@@ -477,14 +644,16 @@ export const ingestItems = (items, source, config) => {
     seen.add(key);
   }
 
-  write((draftState) => ({
-    ...draftState,
-    automation: {
-      ...draftState.automation,
-      queue: [...accepted, ...draftState.automation.queue].slice(0, 60),
-      seen: [...seen].slice(-400),
-    },
-  }));
+  if (accepted.length) {
+    write((draftState) => ({
+      ...draftState,
+      automation: {
+        ...draftState.automation,
+        queue: [...accepted, ...draftState.automation.queue].slice(0, 60),
+        seen: [...seen].slice(-400),
+      },
+    }));
+  }
 
   return { accepted: accepted.length, rejected: rejected.length, rejectedSample: rejected.slice(0, 3) };
 };
@@ -496,9 +665,7 @@ export const rejectQueueItem = (id, reason = 'rejected by the editor') =>
     ...draft,
     automation: {
       ...draft.automation,
-      queue: draft.automation.queue.map((entry) =>
-        entry.id === id ? { ...entry, status: 'rejected', reason } : entry,
-      ),
+      queue: draft.automation.queue.map((entry) => (entry.id === id ? { ...entry, status: 'rejected', reason } : entry)),
       stats: { ...draft.automation.stats, rejected: draft.automation.stats.rejected + 1 },
     },
   }));
@@ -523,14 +690,9 @@ export const queueStory = (id) => {
     automation: {
       ...draft.automation,
       queue: draft.automation.queue.map((item) =>
-        item.id === id
-          ? { ...item, status: 'published', publishedAt: new Date().toISOString(), slug: post.slug }
-          : item,
+        item.id === id ? { ...item, status: 'published', publishedAt: new Date().toISOString(), slug: post.slug } : item,
       ),
-      stats: {
-        ...draft.automation.stats,
-        published: draft.automation.stats.published + 1,
-      },
+      stats: { ...draft.automation.stats, published: draft.automation.stats.published + 1 },
     },
   }));
   agentLog('success', `Published “${entry.draft.title}” from ${entry.sourceName}`);
@@ -543,9 +705,7 @@ export const markQueuePublished = (id, slug) =>
     automation: {
       ...draft.automation,
       queue: draft.automation.queue.map((entry) =>
-        entry.id === id
-          ? { ...entry, status: 'published', publishedAt: new Date().toISOString(), slug }
-          : entry,
+        entry.id === id ? { ...entry, status: 'published', publishedAt: new Date().toISOString(), slug } : entry,
       ),
     },
   }));
@@ -555,71 +715,137 @@ export const markQueuePublished = (id, slug) =>
 const withinLastHour = (queue) =>
   queue.filter(
     (entry) =>
-      entry.status === 'published' &&
-      entry.publishedAt &&
-      Date.now() - new Date(entry.publishedAt).getTime() < 3_600_000,
+      entry.status === 'published' && entry.publishedAt && Date.now() - new Date(entry.publishedAt).getTime() < 3_600_000,
   ).length;
 
-export const runAutomationCycle = async ({ manual = false } = {}) => {
+const patchSource = (sourceId, patch) =>
+  write((draft) => ({
+    ...draft,
+    automation: {
+      ...draft.automation,
+      sources: draft.automation.sources.map((entry) => (entry.id === sourceId ? { ...entry, ...patch } : entry)),
+    },
+  }));
+
+const LOCK_KEY = 'newspulse24:automation:lock';
+const LOCK_TTL = 90_000;
+
+const acquireLock = () => {
+  if (typeof window === 'undefined' || !window.localStorage) return true;
+  try {
+    const at = Number(window.localStorage.getItem(LOCK_KEY) || 0);
+    if (at && Date.now() - at < LOCK_TTL) return false;
+    window.localStorage.setItem(LOCK_KEY, String(Date.now()));
+    return true;
+  } catch {
+    return true;
+  }
+};
+
+const releaseLock = () => {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    window.localStorage.removeItem(LOCK_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+};
+
+/**
+ * One full cycle: fetch every enabled feed, enrich a few promising items,
+ * queue the drafts, publish what the rules allow, and record a diagnosis the
+ * panel can show when a run produces nothing.
+ */
+export const runAutomationCycle = async ({ manual = false, sourceId = null } = {}) => {
   const state = read();
   const config = state.automation;
-  if (!config.enabled && !manual) return { skipped: true, reason: 'agent disabled' };
-  const sources = config.sources.filter((source) => source.enabled);
-  if (!sources.length) {
-    agentLog('warn', 'Run skipped: no sources enabled');
-    return { skipped: true, reason: 'no sources' };
-  }
+  if (!config.enabled && !manual) return { skipped: true, reason: 'the agent is switched off' };
 
-  agentLog('info', `Run started · ${sources.length} source${sources.length === 1 ? '' : 's'}`);
+  const sources = config.sources
+    .filter((source) => source.enabled && (!sourceId || source.id === sourceId))
+    .sort((a, b) => new Date(a.lastFetchedAt || 0) - new Date(b.lastFetchedAt || 0));
+
+  if (!sources.length) {
+    agentLog('warn', 'Run skipped: no channels are switched on');
+    return { skipped: true, reason: 'no channels enabled' };
+  }
+  if (!manual && !acquireLock()) return { skipped: true, reason: 'another tab is running a cycle' };
+
+  write((draft) => ({
+    ...draft,
+    automation: { ...draft.automation, lastRunAt: new Date().toISOString() },
+  }));
+  agentLog('info', `Run started · ${sources.length} channel${sources.length === 1 ? '' : 's'}`);
+
   let ingested = 0;
   let failures = 0;
   let published = 0;
+  let enriched = 0;
+  const reports = [];
 
-  for (const source of sources) {
-    try {
-      const items = await fetchFeed(source, config.proxy);
-      const result = ingestItems(items, source, config);
-      ingested += result.accepted;
-      write((draft) => ({
-        ...draft,
-        automation: {
-          ...draft.automation,
-          sources: draft.automation.sources.map((entry) =>
-            entry.id === source.id
-              ? {
-                  ...entry,
-                  lastFetchedAt: new Date().toISOString(),
-                  lastStatus: result.accepted
-                    ? `${result.accepted} new`
-                    : items.length
-                      ? 'no new items'
-                      : 'empty feed',
-                  lastCount: items.length,
-                }
-              : entry,
-          ),
-        },
-      }));
-    } catch (error) {
-      failures += 1;
-      write((draft) => ({
-        ...draft,
-        automation: {
-          ...draft.automation,
-          sources: draft.automation.sources.map((entry) =>
-            entry.id === source.id
-              ? {
-                  ...entry,
-                  lastFetchedAt: new Date().toISOString(),
-                  lastStatus: String(error.message || 'fetch failed').slice(0, 120),
-                }
-              : entry,
-          ),
-        },
-      }));
-      agentLog('error', `${source.name}: ${error.message}`);
+  const enrichBudget = config.enrich === false ? 0 : 6;
+
+  // Four channels at a time: fast enough to feel instant, polite to publishers.
+  const queueOfSources = [...sources];
+  const workers = Array.from({ length: Math.min(4, queueOfSources.length) }, async () => {
+    for (;;) {
+      const source = queueOfSources.shift();
+      if (!source) return;
+      try {
+        const { items, via, feedTitle } = await fetchFeedDetailed(source, config);
+
+        // Spend the enrichment budget on recent, thin items only.
+        const enrichedByUrl = new Map();
+        for (const item of items.slice(0, 12)) {
+          if (enriched >= enrichBudget) break;
+          if (!isRecentEnough(item, config.maxAgeHours ?? 36)) continue;
+          if (!item.summary || stripHtml(item.summary).length < 160) {
+            enriched += 1;
+            const fuller = await enrichArticle(item, config);
+            enrichedByUrl.set(item.url, fuller);
+          }
+        }
+        const merged = items.map((item) => enrichedByUrl.get(item.url) || item);
+        const result = ingestItems(merged, source, config, { limit: 20 });
+        const rejection = result.rejectedSample?.[0]?.reason || '';
+
+        ingested += result.accepted;
+        patchSource(source.id, {
+          lastFetchedAt: new Date().toISOString(),
+          lastStatus: result.accepted
+            ? `${result.accepted} new${result.accepted === 1 ? ' story' : ' stories'}`
+            : items.length
+              ? `${items.length} read · none usable${rejection ? ` (${rejection})` : ''}`
+              : 'empty feed',
+          lastCount: items.length,
+          lastVia: via,
+          lastError: '',
+          name: source.name || feedTitle || source.name,
+        });
+        reports.push({
+          id: source.id,
+          name: source.name,
+          ok: true,
+          items: items.length,
+          accepted: result.accepted,
+          skipped: result.rejected,
+          reason: result.accepted ? '' : rejection,
+          via,
+        });
+      } catch (error) {
+        failures += 1;
+        const message = String(error.message || 'fetch failed').slice(0, 160);
+        patchSource(source.id, {
+          lastFetchedAt: new Date().toISOString(),
+          lastStatus: 'failed',
+          lastError: message,
+        });
+        reports.push({ id: source.id, name: source.name, ok: false, error: message });
+        agentLog('error', `${source.name}: ${message}`);
+      }
     }
-  }
+  });
+  await Promise.all(workers);
 
   let nextConfig = read().automation;
 
@@ -635,7 +861,7 @@ export const runAutomationCycle = async ({ manual = false } = {}) => {
         nextConfig = read().automation;
       }
     }
-    if (slots === 0) agentLog('warn', 'Auto-publish paused: hourly cap reached');
+    if (slots === 0) agentLog('warn', 'Auto-publish paused: the hourly cap is reached');
   }
 
   const finished = new Date().toISOString();
@@ -644,6 +870,13 @@ export const runAutomationCycle = async ({ manual = false } = {}) => {
     automation: {
       ...draft.automation,
       lastRunAt: finished,
+      diagnostics: {
+        at: finished,
+        ingested,
+        published,
+        failures,
+        channels: reports.slice(0, 20),
+      },
       stats: {
         ...draft.automation.stats,
         runs: draft.automation.stats.runs + 1,
@@ -654,10 +887,82 @@ export const runAutomationCycle = async ({ manual = false } = {}) => {
   }));
   agentLog(
     'info',
-    `Run finished · ${ingested} new · ${published} published${failures ? ` · ${failures} failed source${failures === 1 ? '' : 's'}` : ''}`,
+    `Run finished · ${ingested} new · ${published} published${failures ? ` · ${failures} channel${failures === 1 ? '' : 's'} failed` : ''}`,
   );
+  if (!manual) releaseLock();
 
-  return { ingested, published, failures };
+  return { ingested, published, failures, channels: reports.length };
+};
+
+/** Reads a site's HTML and finds the feeds it advertises. */
+export const discoverFeeds = async (siteUrl, config = readAutomation()) => {
+  const base = /^https?:\/\//i.test(siteUrl) ? siteUrl : `https://${siteUrl}`;
+  let html = '';
+  let used = '';
+
+  for (const template of proxyChain(config)) {
+    try {
+      html = await requestText(materialise(template, base), 10_000);
+      used = template === '{url}' ? 'direct' : 'proxy';
+      if (/<html/i.test(html)) break;
+    } catch {
+      /* next hop */
+    }
+  }
+  if (!html || !/<html/i.test(html)) throw new Error('could not read that site');
+
+  const found = new Map();
+  const add = (url, title = '') => {
+    try {
+      const absolute = new URL(url, base).toString();
+      if (!/^https?:/i.test(absolute) || found.has(absolute)) return;
+      found.set(absolute, stripHtml(title) || sourceHost(absolute));
+    } catch {
+      /* malformed */
+    }
+  };
+
+  for (const match of html.matchAll(/<link[^>]+type=["']application\/(?:rss|atom)\+xml["'][^>]*>/gi)) {
+    const href = match[0].match(/href=["']([^"']+)["']/i)?.[1];
+    const title = match[0].match(/title=["']([^"']+)["']/i)?.[1] || '';
+    if (href) add(href, title);
+  }
+  for (const match of html.matchAll(/<a[^>]+href=["']([^"']*(?:rss|feed|atom)[^"']*)["']/gi)) {
+    add(match[1]);
+  }
+  for (const guess of ['/feed', '/rss', '/rss.xml', '/feed.xml', '/atom.xml', '/index.xml']) {
+    add(guess);
+  }
+
+  const results = [];
+  for (const [url, title] of [...found.entries()].slice(0, 8)) {
+    try {
+      const { items, feedTitle } = await fetchFeedDetailed({ id: 'probe', name: title, url, section: '' }, config);
+      if (!items.length) continue;
+      results.push({
+        id: `src-${hash(url).slice(0, 8)}`,
+        name: stripHtml(feedTitle) || title,
+        url,
+        section: '',
+        weight: 1,
+        enabled: true,
+        lastStatus: `verified · ${items.length} items`,
+        lastCount: items.length,
+        samples: items.slice(0, 2).map((item) => item.title),
+      });
+    } catch {
+      /* not a usable feed */
+    }
+    if (results.length >= 4) break;
+  }
+
+  if (!results.length) throw new Error(`no working feed found on that site (${used || 'no route'})`);
+  return results;
+};
+
+export const addChannel = (channel, existing = []) => {
+  if (existing.some((source) => source.url === channel.url)) return existing;
+  return [...existing, sourceFromChannel(channel, { lastStatus: 'queued for its first run' })].slice(0, 30);
 };
 
 /* ----------------------------------------------------------------- scheduler */
@@ -672,31 +977,41 @@ export const startAutomationLoop = () => {
     const config = read().automation;
     if (!config.enabled) return;
     const due =
-      !config.lastRunAt ||
-      Date.now() - new Date(config.lastRunAt).getTime() >= config.intervalMinutes * 60_000;
+      !config.lastRunAt || Date.now() - new Date(config.lastRunAt).getTime() >= config.intervalMinutes * 60_000;
     if (!due) return;
     busy = true;
     try {
       await runAutomationCycle();
     } catch (error) {
       agentLog('error', `Cycle crashed: ${error.message}`);
+      releaseLock();
     } finally {
       busy = false;
     }
   };
 
-  const first = window.setTimeout(tick, 4_000);
-  const timer = window.setInterval(tick, 30_000);
+  const onVisible = () => {
+    if (document.visibilityState === 'visible') tick();
+  };
+
+  const first = window.setTimeout(tick, 3_000);
+  const timer = window.setInterval(tick, 20_000);
+  document.addEventListener('visibilitychange', onVisible);
+  window.addEventListener('online', onVisible);
+
   return () => {
     disposed = true;
     window.clearTimeout(first);
     window.clearInterval(timer);
+    document.removeEventListener('visibilitychange', onVisible);
+    window.removeEventListener('online', onVisible);
   };
 };
 
 export const nextRunAt = () => {
   const config = read().automation;
-  if (!config.enabled || !config.lastRunAt) return null;
+  if (!config.enabled) return null;
+  if (!config.lastRunAt) return new Date();
   return new Date(new Date(config.lastRunAt).getTime() + config.intervalMinutes * 60_000);
 };
 

@@ -1,8 +1,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import wireProxy from './scripts/vite-wire.mjs';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), wireProxy()],
   ssr: {
     // bundle CJS deps into the prerender entry so Node's ESM loader is happy
     noExternal: ['react-helmet-async', 'react-router-dom', 'react-router', 'framer-motion', 'd3-geo', 'lucide-react'],
