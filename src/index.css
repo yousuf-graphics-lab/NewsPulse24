@@ -171,47 +171,7 @@
   animation-play-state: paused;
 }
 
-/* ---------- Rotating globe logo ---------- */
-.globe-shell {
-  position: relative;
-  display: grid;
-  place-items: center;
-  perspective: 220px;
-}
-.globe-sphere {
-  position: absolute;
-  inset: 12%;
-  border-radius: 999px;
-  transform-style: preserve-3d;
-  animation: globe-spin 14s linear infinite;
-}
-.globe-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 70, 84, 0.55);
-  transform: rotateY(var(--ry));
-}
-.globe-glare {
-  position: absolute;
-  inset: 0;
-  border-radius: 999px;
-  background: radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.3), transparent 46%),
-    radial-gradient(circle at 68% 78%, rgba(255, 16, 36, 0.45), transparent 60%);
-  pointer-events: none;
-}
-
-@keyframes globe-spin {
-  from {
-    transform: rotateY(0deg);
-  }
-  to {
-    transform: rotateY(360deg);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .globe-sphere,
   .marquee-track,
   .animate-kenburns,
   .animate-marquee {
@@ -306,7 +266,4 @@
   }
 }
 
-@keyframes globe-map {
-  from { background-position: 0% 50%; }
-  to { background-position: -200% 50%; }
-}
+

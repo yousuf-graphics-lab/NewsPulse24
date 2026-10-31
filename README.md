@@ -15,6 +15,7 @@ vivid red accents, information-dense editorial grid, rotating globe brand mark).
 - **Lucide React** icon set
 - **Framer Motion** for the hero crossfade and filter/grid transitions
 - **React Router 6** for article, search, archive, live and static routes
+- **d3-geo** for the rotating globe mark (true orthographic projection)
 - **Inter Variable** self-hosted via `@fontsource-variable/inter`
 - All editorial photography stored locally in `public/images` — no external image dependency,
   so a broken image can never appear in the build
@@ -76,12 +77,13 @@ and related-story links all read from that same source — no card markup is dup
 
 ```
 src/
-├── components/      # SiteHeader, BrandLogo, SearchBar, UserActions, PrimaryNavigation,
+├── components/      # SiteHeader, BrandLogo, GlobeMark, SearchBar, UserActions, PrimaryNavigation,
 │                    # MobileNavigation, BreakingNewsTicker, HeroCarousel, TopStoriesSidebar,
 │                    # SectionHeading, CategoryFilters, NewsGrid, NewsCard, LiveTVPanel,
 │                    # TrendingNowPanel, SubscribeModal, SignInModal, LiveTVModal, SiteFooter…
 ├── context/         # AppContext — modals, search, menu, notifications, bookmarks, toasts
 ├── data/news.js     # single editorial dataset + helpers (search, related, formatting)
+│   data/worldLand.js# generated Natural Earth land polygons for the globe mark
 ├── pages/           # HomePage, ArticlePage, SearchPage, LatestPage, LivePage, AboutPage, 404
 └── index.css        # design tokens, panel/blur/glow utilities, article typography
 ```
@@ -89,8 +91,29 @@ src/
 ## Assets
 
 Editorial imagery in `public/images` covers the digital-Earth hero, summit diplomacy, markets,
-AI systems, robotics, space launch, medicine, broadcast studio and sport. The globe emblem is
-drawn with SVG/CSS (rotating land surface + meridians) so it stays crisp at any size.
+AI systems, robotics, space launch, medicine, broadcast studio and sport.
+
+### The globe mark
+
+The brand emblem is a genuine globe, not a decorative swirl:
+
+- **Real geography** — Natural Earth 110m land polygons (`public domain`), simplified with
+  Douglas–Peucker and rounded to 0.2° by `node scripts/build-land.mjs` into
+  `src/data/worldLand.js` (13 kB).
+- **True projection** — `d3-geo`'s orthographic projection with a 12° axial tilt, so continents
+  foreshorten correctly towards the limb and rotate through the visible hemisphere.
+- **Legible at brand size** — the ocean stays near-black and the land is lit in vivid red, so the
+  silhouette reads clearly even at 38 px in the header and 32 px in the footer.
+- **Performance** — the graticule is drawn analytically (a few sampled points per line) instead of
+  from a full GeoJSON graticule, and re-projection is throttled to 30 fps. The whole page still
+  renders at 60 fps with the globe spinning, and the spin pauses when the tab is hidden and is
+  disabled entirely under `prefers-reduced-motion`.
+
+Regenerate the land data with:
+
+```bash
+node scripts/build-land.mjs
+```
 
 ## Notes on honesty
 
