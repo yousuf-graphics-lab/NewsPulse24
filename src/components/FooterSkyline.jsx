@@ -38,7 +38,7 @@ const ANTENNAS = [
 export default function FooterSkyline({ className = '' }) {
   return (
     <svg
-      viewBox="0 40 1800 210"
+      viewBox="0 52 1800 198"
       preserveAspectRatio="xMidYMax slice"
       aria-hidden="true"
       focusable="false"
@@ -46,12 +46,12 @@ export default function FooterSkyline({ className = '' }) {
     >
       <defs>
         <linearGradient id="skyline-far" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#101118" />
-          <stop offset="100%" stopColor="#0A0B10" />
+          <stop offset="0%" stopColor="#16161F" />
+          <stop offset="100%" stopColor="#0C0C14" />
         </linearGradient>
         <linearGradient id="skyline-near" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#08090E" />
-          <stop offset="100%" stopColor="#030408" />
+          <stop offset="0%" stopColor="#0A0A10" />
+          <stop offset="100%" stopColor="#020306" />
         </linearGradient>
         <mask id="colosseum-arches" maskUnits="userSpaceOnUse" x="490" y="150" width="150" height="110">
           <rect x="490" y="150" width="150" height="110" fill="#fff" />
@@ -65,7 +65,7 @@ export default function FooterSkyline({ className = '' }) {
       </defs>
 
       {/* far skyline — low contrast, sits behind everything */}
-      <g fill="#0D0E14">
+      <g fill="#131320">
         {TOWERS.map(([x, w, h]) => (
           <rect key={`f-${x}`} x={x} y={BASE - h} width={w} height={h} />
         ))}

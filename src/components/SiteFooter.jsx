@@ -131,11 +131,11 @@ export default function SiteFooter() {
           <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-ink-900 to-transparent" />
         </div>
 
-        <div className="container-news relative py-10 lg:py-12">
-          <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:gap-0">
+        <div className="container-news relative py-9 lg:py-10">
+          <div className="flex flex-col gap-8 lg:flex-row lg:items-stretch lg:gap-0">
             <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:gap-6 lg:contents">
             {/* rotating globe emblem */}
-            <div className="shrink-0 lg:pr-8 xl:pr-10">
+            <div className="shrink-0 lg:flex lg:items-center lg:pr-8 xl:pr-10">
               <div className="relative h-[96px] w-[96px] sm:h-[112px] sm:w-[112px] lg:h-[136px] lg:w-[136px] xl:h-[152px] xl:w-[152px]">
                 <span
                   aria-hidden="true"
@@ -150,9 +150,9 @@ export default function SiteFooter() {
             </div>
 
             {/* wordmark + description */}
-            <div className="min-w-0 flex-1 lg:border-l lg:border-line-soft lg:px-8 xl:px-10">
+            <div className="min-w-0 flex-1 lg:flex lg:flex-col lg:justify-center lg:border-l lg:border-line-soft lg:px-8 xl:px-10">
               <Link to="/" aria-label="NewsPulse 24 — home" className="group inline-block">
-                <span className="heading-xl block whitespace-nowrap text-[30px] leading-[0.95] drop-shadow-[0_2px_14px_rgba(0,0,0,0.7)] xs:text-[36px] sm:text-[42px] xl:text-[50px]">
+                <span className="heading-xl block whitespace-nowrap text-[30px] leading-[0.95] drop-shadow-[0_2px_14px_rgba(0,0,0,0.7)] xs:text-[36px] sm:text-[42px] lg:text-[44px] xl:text-[56px]">
                   <span className="text-white">News</span>
                   <span className="text-pulse">Pulse</span>
                   <span className="ml-[0.18em] text-pulse">24</span>
@@ -162,7 +162,7 @@ export default function SiteFooter() {
                 </span>
               </Link>
 
-              <p className="mt-4 max-w-[440px] text-[12px] leading-[1.7] text-muted sm:text-[13.5px]">
+              <p className="mt-4 max-w-[520px] text-[12px] leading-[1.7] text-muted sm:text-[13.5px] xl:max-w-none">
                 Independent international reporting, live broadcast and data-led analysis from six
                 newsrooms across four continents.
               </p>
@@ -191,7 +191,7 @@ export default function SiteFooter() {
             </div>
 
             {/* newsletter */}
-            <div className="w-full lg:w-[46%] lg:max-w-[580px] lg:border-l lg:border-line-soft lg:pl-8 xl:pl-10">
+            <div className="w-full lg:flex lg:w-[44%] lg:max-w-[620px] lg:flex-col lg:justify-between lg:border-l lg:border-line-soft lg:pl-8 xl:pl-10">
               <div className="flex items-center gap-3">
                 <Mail aria-hidden="true" className="h-[26px] w-[26px] shrink-0 text-pulse sm:h-[30px] sm:w-[30px]" strokeWidth={1.6} />
                 <h2 className="text-[17px] font-extrabold uppercase leading-none tracking-[0.06em] text-bone sm:text-[21px]">
@@ -286,9 +286,10 @@ export default function SiteFooter() {
 
       {/* ───────────────────────── directory band ───────────────────────── */}
       <div aria-hidden="true" className="h-[2px] bg-gradient-to-r from-pulse via-pulse/85 to-pulse/25" />
-      <div className="relative bg-ink-900/60">
-        <div className="container-news pb-4 pt-10 xl:pb-11">
-          <div className="grid grid-cols-1 gap-x-8 gap-y-9 sm:grid-cols-2 xl:grid-cols-[1fr_1.16fr_0.78fr_1.06fr] xl:gap-0">
+      <div className="relative overflow-hidden bg-ink-900/60">
+        {/* desktop horizon sits inside the directory band so the band never ends on dead space */}
+        <div className="container-news relative z-10 pb-2 pt-9">
+          <div className="grid grid-cols-1 gap-x-8 gap-y-9 sm:grid-cols-2 xl:grid-cols-[1fr_1.25fr_0.85fr_1.08fr] xl:gap-0">
             <nav aria-labelledby="footer-sections" className="xl:pr-8">
               <FooterHeading>
                 <span id="footer-sections">Sections</span>
@@ -350,7 +351,7 @@ export default function SiteFooter() {
 
             <div className="xl:border-l xl:border-line-soft xl:pl-8">
               <FooterHeading>Follow News Pulse</FooterHeading>
-              <ul className="mt-4 flex items-center gap-2.5">
+              <ul className="mt-4 flex items-center gap-2 2xl:gap-2.5">
                 {SOCIALS.map(({ label, href, Icon, brand }) => (
                   <li key={label}>
                     <a
@@ -358,7 +359,7 @@ export default function SiteFooter() {
                       target="_blank"
                       rel="noreferrer noopener"
                       aria-label={label}
-                      className="group grid h-[50px] w-[50px] place-items-center rounded-full xl:h-[52px] xl:w-[52px] border border-line-soft bg-gradient-to-b from-ink-750 to-ink-850 transition-all duration-200 hover:-translate-y-0.5 hover:border-pulse/60 hover:bg-pulse/[0.12] hover:shadow-[0_10px_24px_-14px_rgba(255,16,36,0.9)]"
+                      className="group grid h-[46px] w-[46px] place-items-center rounded-full 2xl:h-[52px] 2xl:w-[52px] border border-line-soft bg-gradient-to-b from-ink-750 to-ink-850 transition-all duration-200 hover:-translate-y-0.5 hover:border-pulse/60 hover:bg-pulse/[0.12] hover:shadow-[0_10px_24px_-14px_rgba(255,16,36,0.9)]"
                     >
                       <Icon className={`h-[20px] w-[20px] transition-colors ${brand}`} />
                     </a>
@@ -372,10 +373,14 @@ export default function SiteFooter() {
 
       {/* ───────────────────────── skyline + legal ───────────────────────── */}
       <div className="relative">
-        <div className="relative h-[128px] overflow-hidden sm:h-[144px] lg:h-[164px]">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 bottom-[58px] h-[280px] bg-[radial-gradient(62%_100%_at_50%_100%,rgba(255,16,36,0.24),rgba(255,16,36,0.08)_50%,transparent_78%)]"
+        />
+        <div className="relative z-0 -mt-[86px] h-[132px] overflow-hidden sm:-mt-[88px] sm:h-[150px] lg:-mt-[96px] lg:h-[162px]">
           <div
             aria-hidden="true"
-            className="absolute inset-0 bg-[radial-gradient(46%_118%_at_50%_116%,rgba(255,16,36,0.26),rgba(255,16,36,0.09)_44%,rgba(255,16,36,0.02)_68%,transparent_80%),linear-gradient(180deg,#060709_0%,#0A0B11_44%,#15131B_100%)]"
+            className="absolute inset-0 bg-[radial-gradient(52%_124%_at_50%_118%,rgba(255,16,36,0.32),rgba(255,16,36,0.1)_42%,transparent_76%),linear-gradient(180deg,#08090D_0%,rgba(9,10,15,0.82)_16%,#0A0B11_44%,#171420_100%)]"
           />
           <FooterSkyline className="absolute inset-x-0 bottom-0 h-full w-full" />
           <div

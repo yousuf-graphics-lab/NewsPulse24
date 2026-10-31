@@ -203,8 +203,11 @@ weight:
 - **Landmark skyline** — `src/components/FooterSkyline.jsx` draws fourteen world landmarks (Christ
   the Redeemer, pagoda, Colosseum, Pisa, Big Ben, Eiffel, torii gate, Taj Mahal, Burj Khalifa,
   Sydney Opera House, Statue of Liberty, Empire State and more) plus a generated low horizon, all
-  inlined SVG with a mask-cut arch arcade. The band bleeds a red horizon glow behind the
-  silhouettes and closes on the red rule above the legal bar.
+  inlined SVG with a mask-cut arch arcade.
+- **No dead space** — the skyline is pulled up under the last directory row (`-mt` with the
+  directory on `z-10`, skyline on `z-0`), so the horizon, its red glow and its haze bleed behind
+  the link columns instead of sitting in a separate band below them. The band closes on the red
+  rule above the legal bar.
 - **Working controls** — the Morning Pulse field validates, stores the address and confirms inline;
   Watch Live and Newsletters open the broadcast and membership dialogs; section links deep-link the
   homepage filters; Privacy, Terms and Cookie links land on real policy sections at `/about`.
