@@ -809,29 +809,37 @@ export const getStoryBySlug = (slug) => STORIES.find((s) => s.slug === slug);
 
 export const getStoryById = (id) => STORIES.find((s) => s.id === id);
 
-export const HERO_STORIES = [
-  { ...STORIES[0], heroKicker: 'Breaking News' },
-  { ...STORIES[1], heroKicker: 'Technology' },
-  { ...STORIES[2], heroKicker: 'Inside NewsPulse' },
-];
+/**
+ * Editorial selections are functions, not constants: the admin panel rewrites
+ * STORIES at runtime, so every consumer has to read it fresh on render.
+ */
+const byNewest = (a, b) => new Date(b.publishedAt) - new Date(a.publishedAt);
 
-export const TOP_STORIES = [
-  STORIES[3],
-  STORIES[4],
-  STORIES[1],
-  STORIES[9],
-];
+export const getHeroStories = () => {
+  const heroes = STORIES.filter((s) => s.hero).sort(byNewest);
+  return (heroes.length >= 2 ? heroes : [...STORIES].sort(byNewest)).slice(0, 3);
+};
 
-export const TRENDING_IDS = [
-  'np-001',
-  'np-006',
-  'np-005',
-  'np-012',
-  'np-009',
-];
-export const TRENDING = TRENDING_IDS.map(getStoryById).filter(Boolean);
+export const getTopStories = () => {
+  const ranked = [...STORIES].sort((a, b) => b.views - a.views);
+  const nonHero = ranked.filter((s) => !s.hero);
+  return (nonHero.length >= 4 ? nonHero : ranked).slice(0, 4);
+};
 
-export const BREAKING_HEADLINES = [STORIES[11], STORIES[0], STORIES[7], STORIES[4], STORIES[12]];
+export const getTrendingStories = () => {
+  const preferred = ['np-001', 'np-006', 'np-005', 'np-012', 'np-009']
+    .map(getStoryById)
+    .filter(Boolean);
+  const extra = [...STORIES]
+    .sort((a, b) => b.views - a.views)
+    .filter((s) => !preferred.includes(s));
+  return [...preferred, ...extra].slice(0, 5);
+};
+
+export const getBreakingHeadlines = () => {
+  const breaking = STORIES.filter((s) => s.hero).sort(byNewest);
+  return (breaking.length ? breaking : [...STORIES].sort(byNewest)).slice(0, 5);
+};
 
 export const storiesByCategory = (category) =>
   category === 'All' ? STORIES : STORIES.filter((s) => s.category === category);

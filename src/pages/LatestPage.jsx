@@ -63,7 +63,7 @@ export default function LatestPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <section>
+        <section className="min-w-0">
           <div className="mb-3 flex flex-col gap-2 border-b border-line pb-3 sm:flex-row sm:items-center sm:justify-between">
             <CategoryFilters value={category} onChange={setCategory} />
             <label className="flex shrink-0 items-center gap-1.5 text-[10.5px] text-muted">

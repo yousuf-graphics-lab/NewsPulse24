@@ -2,7 +2,8 @@ import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronRight, LogOut, Radio, Search, X } from 'lucide-react';
-import { CATEGORIES, HERO_STORIES } from '../data/news';
+import { CATEGORIES } from '../data/news';
+import { getHeroStories } from '../lib/contentStore';
 import { useApp } from '../context/AppContext';
 import BrandLogo from './BrandLogo';
 
@@ -107,7 +108,7 @@ export default function MobileNavigation({ open, onClose }) {
             Top stories
           </p>
           <ul className="mb-5 space-y-2.5">
-            {HERO_STORIES.map((s) => (
+            {getHeroStories().map((s) => (
               <li key={s.id}>
                 <Link
                   to={`/article/${s.slug}`}

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Clock3, Radio, Signal, Tv, Users } from 'lucide-react';
-import { HERO_STORIES, formatRelativeTime } from '../data/news';
+import { formatRelativeTime } from '../data/news';
+import { getHeroStories } from '../lib/contentStore';
 import { useApp } from '../context/AppContext';
 import Seo from '../components/Seo';
 
@@ -154,7 +155,7 @@ export default function LivePage() {
           On the radar today
         </h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {HERO_STORIES.map((s) => (
+          {getHeroStories().map((s) => (
             <Link
               key={s.id}
               to={`/article/${s.slug}`}

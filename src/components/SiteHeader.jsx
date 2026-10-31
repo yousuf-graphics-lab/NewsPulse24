@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Menu, Search, X } from 'lucide-react';
 import BrandLogo from './BrandLogo';
 import SearchBar from './SearchBar';
@@ -12,6 +12,10 @@ import { useApp } from '../context/AppContext';
 export default function SiteHeader({ ticker = true }) {
   const { searchOpen, setSearchOpen, menuOpen, setMenuOpen } = useApp();
   const [scrolled, setScrolled] = useState(false);
+  const { pathname } = useLocation();
+  /* The control room gets a stripped header: no nav, no ticker, no search. */
+  const controlRoom = pathname === '/admin';
+  const showTicker = ticker && !controlRoom;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -46,28 +50,36 @@ export default function SiteHeader({ ticker = true }) {
               <BrandLogo size="lg" />
             </div>
 
-            <div className="hidden flex-1 justify-center px-2 md:flex lg:px-6">
-              <SearchBar />
-            </div>
+            {controlRoom ? (
+              <span className="hidden items-center gap-1.5 rounded-[3px] border border-pulse/30 bg-pulse/[0.08] px-2 py-[3px] text-[9px] font-bold uppercase tracking-[0.16em] text-pulse-400 sm:flex">
+                Publisher access
+              </span>
+            ) : (
+              <div className="hidden flex-1 justify-center px-2 md:flex lg:px-6">
+                <SearchBar />
+              </div>
+            )}
 
             <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-              <button
-                type="button"
-                onClick={() => setSearchOpen(true)}
-                aria-label="Open search"
-                className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-bone/85 transition-colors hover:bg-white/5 hover:text-white md:hidden"
-              >
-                <Search className="h-[18px] w-[18px]" />
-              </button>
-              <UserActions />
+              {controlRoom ? null : (
+                <button
+                  type="button"
+                  onClick={() => setSearchOpen(true)}
+                  aria-label="Open search"
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-bone/85 transition-colors hover:bg-white/5 hover:text-white md:hidden"
+                >
+                  <Search className="h-[18px] w-[18px]" />
+                </button>
+              )}
+              {controlRoom ? null : <UserActions />}
             </div>
           </div>
         </div>
 
         {/* navigation row */}
-        <PrimaryNavigation />
+        {controlRoom ? null : <PrimaryNavigation />}
         </div>
-        {ticker && <BreakingNewsTicker />}
+        {showTicker && <BreakingNewsTicker />}
       </header>
 
       {/* mobile search overlay */}

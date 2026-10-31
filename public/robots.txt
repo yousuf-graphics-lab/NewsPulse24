@@ -2,6 +2,7 @@
 User-agent: *
 Allow: /
 Disallow: /search
+Disallow: /admin
 Disallow: /*?q=
 
 # Crawl-friendly for news aggregators

@@ -212,7 +212,40 @@ weight:
   Watch Live and Newsletters open the broadcast and membership dialogs; section links deep-link the
   homepage filters; Privacy, Terms and Cookie links land on real policy sections at `/about`.
 
+## Admin panel
+
+`/admin` is the editorial control room: a dark, focused console that writes to the same story
+store the site renders from.
+
+**Sign in** with the editorial ID and passphrase issued for the newsroom. The credential is verified
+in the browser — the password is only ever a PBKDF2-SHA-256 digest (310 000 iterations, salted and
+peppered), never plaintext, and comparisons are constant-time. Five bad attempts lock the form with
+exponential back-off; sessions live in `sessionStorage` with a 256-bit token, a 20-minute idle
+window and an 8-hour ceiling. The Security tab can rotate the passphrase (hash-only), reset the
+lock-out and sign every session out.
+
+**What it controls**
+
+| Area | Capability |
+| --- | --- |
+| Overview | Real stats — published count, words on the wire, total read counter, drafts, breaking, section balance, content-health checks, per-browser reads and a full activity log |
+| Stories | Search and filter the whole newsroom; write a new story with headline, standfirst, section, tags, reporter, lead image, read time, blocks (paragraph, subheading, quote, list), breaking flag and publish date; edit any shipped story; unpublish, take down or delete; restore |
+| Homepage | Pin up to three hero slides and four ticker headlines in order |
+| Security | Session details, passphrase rotation with a strength meter, brute-force guard, audit trail |
+
+Changes are applied live: `src/lib/contentStore.js` keeps the edits in `localStorage` and rebuilds
+the exported `STORIES` array, so the homepage, article pages, search, latest, ticker and hero all
+pick them up on the next render — no reload, no separate data path.
+
+**Scope, stated plainly.** This is a browser-local publisher: content written in the panel is served
+to the browser that wrote it. Publishing to every visitor needs a database and an authenticated API
+(Vercel Postgres/Supabase + a serverless handler is the natural next step for this stack). The
+client-side gate can also be bypassed by anyone with the bundle, which is why the panel is
+`noindex`, disallowed in `robots.txt`, sent `X-Robots-Tag: noindex` and `Cache-Control: no-store`
+from `vercel.json`, and never surfaces credentials in the UI beyond the editorial ID.
+
 ## Notes on honesty
+
 
 Nothing in this build pretends to be a live production service: the subscription and sign-in
 flows are labelled demonstrations, the live player reports that no stream ingest is configured,

@@ -1,25 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, ChevronLeft, ChevronRight, Flame, Pause, Play, Zap } from 'lucide-react';
-import { BREAKING_HEADLINES, STORIES, formatRelativeTime } from '../data/news';
+import { formatRelativeTime } from '../data/news';
+import { getTickerStories } from '../lib/contentStore';
 
 /* 74 px per second reads comfortably without blurring the longer headlines. */
 const SPEED_PX_PER_SEC = 82;
 
-const topRead = [...STORIES].sort((a, b) => b.views - a.views).slice(0, 4);
-
-const ITEMS = [
-  ...BREAKING_HEADLINES.slice(0, 4).map((s) => ({
-    story: s,
-    label: 'Breaking',
-    accent: 'breaking',
-  })),
-  ...topRead.map((s, i) => ({
-    story: s,
-    label: `#${i + 1} Most read`,
-    accent: 'top',
-  })),
-];
+const buildItems = () => {
+  const { breaking, topRead } = getTickerStories();
+  return [
+    ...breaking.map((s) => ({ story: s, label: 'Breaking', accent: 'breaking' })),
+    ...topRead.map((s, i) => ({ story: s, label: `#${i + 1} Most read`, accent: 'top' })),
+  ];
+};
 
 function TickerItem({ item, duplicate }) {
   const { story, label, accent } = item;
@@ -49,6 +43,7 @@ function TickerItem({ item, duplicate }) {
 }
 
 export default function BreakingNewsTicker() {
+  const items = useMemo(buildItems, []);
   const [now, setNow] = useState(new Date());
   const [paused, setPaused] = useState(false);
   const [duration, setDuration] = useState(60);
@@ -146,7 +141,7 @@ export default function BreakingNewsTicker() {
           >
             {[0, 1].map((copy) => (
               <div key={copy} className="flex items-center" aria-hidden={copy === 1 || undefined}>
-                {ITEMS.map((item) => (
+                {items.map((item) => (
                   <TickerItem
                     key={`${copy}-${item.label}-${item.story.id}`}
                     item={item}

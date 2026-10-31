@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
-import { TOP_STORIES, formatRelativeTime } from '../data/news';
+import { formatRelativeTime, getTopStories } from '../data/news';
 
 export default function TopStoriesSidebar({ className = '' }) {
   return (
@@ -25,7 +25,7 @@ export default function TopStoriesSidebar({ className = '' }) {
       </div>
 
       <ul className="grid flex-1 grid-cols-1 sm:grid-cols-2 lg:grid-cols-1">
-        {TOP_STORIES.map((story) => (
+        {getTopStories().map((story) => (
           <li key={story.id} className="border-b border-line/70 last:border-b-0">
             <Link
               to={`/article/${story.slug}`}

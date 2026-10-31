@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Flame } from 'lucide-react';
-import { TRENDING, formatCompactViews } from '../data/news';
+import { formatCompactViews, getTrendingStories } from '../data/news';
 
 export default function TrendingNowPanel() {
   return (
@@ -20,7 +20,7 @@ export default function TrendingNowPanel() {
         </span>
       </div>
       <ol className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1">
-        {TRENDING.map((story, i) => (
+        {getTrendingStories().map((story, i) => (
           <li key={story.id} className="border-b border-line/60 last:border-b-0">
             <Link
               to={`/article/${story.slug}`}

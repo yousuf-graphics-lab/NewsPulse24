@@ -10,13 +10,13 @@ import TrendingNowPanel from '../components/TrendingNowPanel';
 import SectionHeading from '../components/SectionHeading';
 import {
   CATEGORIES,
-  HERO_STORIES,
   STORIES,
   formatCompactViews,
   formatRelativeTime,
   storiesByCategory,
 } from '../data/news';
 import { useApp } from '../context/AppContext';
+import { getHeroStories } from '../lib/contentStore';
 import Seo from '../components/Seo';
 import { absoluteUrl, SITE } from '../config/site';
 
@@ -28,7 +28,7 @@ export default function HomePage() {
   const category = params.get('category') || 'All';
 
   const latest = useMemo(() => {
-    const heroIds = new Set(HERO_STORIES.map((s) => s.id));
+    const heroIds = new Set(getHeroStories().map((s) => s.id));
     const list = storiesByCategory(category).filter(
       (s) => category !== 'All' || !heroIds.has(s.id),
     );

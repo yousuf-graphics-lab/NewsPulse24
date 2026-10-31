@@ -13,6 +13,7 @@ import SearchPage from './pages/SearchPage';
 import LatestPage from './pages/LatestPage';
 import LivePage from './pages/LivePage';
 import AboutPage from './pages/AboutPage';
+import AdminPage from './pages/AdminPage';
 import NotFoundPage from './pages/NotFoundPage';
 import { DUR, EASE } from './lib/motion';
 
@@ -36,6 +37,11 @@ function ScrollManager() {
  * Fades the routed content in on navigation. Skipped on the very first paint so
  * prerendered HTML is visible immediately (no flash of invisible content).
  */
+function FooterGate() {
+  const { pathname } = useLocation();
+  return pathname === '/admin' ? null : <SiteFooter />;
+}
+
 function RouteTransition({ children }) {
   const { pathname } = useLocation();
   const [armed, setArmed] = useState(false);
@@ -75,11 +81,12 @@ export default function App() {
             <Route path="/latest" element={<LatestPage />} />
             <Route path="/live" element={<LivePage />} />
             <Route path="/about" element={<AboutPage />} />
+            <Route path="/admin" element={<AdminPage />} />
             <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </RouteTransition>
         </div>
-        <SiteFooter />
+        <FooterGate />
       </div>
 
       <SubscribeModal />

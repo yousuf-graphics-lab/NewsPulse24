@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRight, ChevronLeft, ChevronRight, Radio } from 'lucide-react';
 import { EASE, EASE_SOFT } from '../lib/motion';
-import { HERO_STORIES, formatRelativeTime } from '../data/news';
+import { formatRelativeTime } from '../data/news';
+import { getHeroStories } from '../lib/contentStore';
 import { useApp } from '../context/AppContext';
 
 const AUTOPLAY_MS = 8000;
@@ -50,12 +51,14 @@ export default function HeroCarousel() {
   const [progressKey, setProgressKey] = useState(0);
   const timer = useRef(null);
   const { openModal } = useApp();
-  const story = HERO_STORIES[index];
+  const slides = getHeroStories();
+  const safeIndex = index % Math.max(slides.length, 1);
+  const story = slides[safeIndex];
   const lines = LINES[story.slug] || fallbackLines(story.title);
 
   const goTo = useCallback((next) => {
     setIndex((prev) => {
-      const total = HERO_STORIES.length;
+      const total = Math.max(slides.length, 1);
       return ((next % total) + total) % total;
     });
     setProgressKey((k) => k + 1);
@@ -129,7 +132,7 @@ export default function HeroCarousel() {
         <span className="hidden items-center gap-1.5 text-[8.5px] font-bold uppercase tracking-[0.2em] text-bone/45 sm:flex">
           {String(index + 1).padStart(2, '0')}
           <span className="text-bone/25">/</span>
-          {String(HERO_STORIES.length).padStart(2, '0')}
+          {String(slides.length).padStart(2, '0')}
         </span>
       </div>
 
@@ -209,7 +212,7 @@ export default function HeroCarousel() {
       {/* controls */}
       <div className="absolute inset-x-4 bottom-3.5 z-20 flex items-center justify-between sm:inset-x-6">
         <div className="flex items-center gap-2" role="tablist" aria-label="Choose featured story">
-          {HERO_STORIES.map((s, i) => (
+          {slides.map((s, i) => (
             <button
               key={s.id}
               type="button"

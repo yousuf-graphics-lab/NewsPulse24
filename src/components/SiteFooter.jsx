@@ -8,6 +8,7 @@ import {
   Facebook,
   Instagram,
   Linkedin,
+  Lock,
   Mail,
   Play,
   Rss,
@@ -406,6 +407,13 @@ export default function SiteFooter() {
               <span aria-hidden="true" className="h-3 w-px bg-line-soft" />
               <Link to="/about#cookies" className="transition-colors hover:text-bone">
                 Cookie Settings
+              </Link>
+              <span aria-hidden="true" className="h-3 w-px bg-line-soft" />
+              <Link
+                to="/admin"
+                className="flex items-center gap-1 text-muted/70 transition-colors hover:text-pulse"
+              >
+                <Lock className="h-2.5 w-2.5" /> Admin
               </Link>
             </nav>
           </div>

@@ -19,6 +19,7 @@ import {
   relatedStories,
 } from '../data/news';
 import { useApp } from '../context/AppContext';
+import { recordRead } from '../lib/contentStore';
 import NewsCard from '../components/NewsCard';
 import SectionHeading from '../components/SectionHeading';
 import NotFoundPage from './NotFoundPage';
@@ -33,6 +34,19 @@ export default function ArticlePage() {
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [slug]);
+
+  /* Feeds the admin dashboard's real read counter — once per tab per story. */
+  useEffect(() => {
+    if (!slug) return;
+    const key = `newspulse24:read:${slug}`;
+    try {
+      if (window.sessionStorage.getItem(key)) return;
+      window.sessionStorage.setItem(key, '1');
+    } catch {
+      /* private mode — still count the read */
+    }
+    recordRead(slug);
   }, [slug]);
 
   useEffect(() => {
