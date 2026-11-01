@@ -1,0 +1,16 @@
+{
+  "name": "NewsPulse 24",
+  "short_name": "NewsPulse 24",
+  "description": "Real news, global impact — breaking world news, business, technology and live coverage.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#050608",
+  "theme_color": "#050608",
+  "lang": "en",
+  "categories": ["news", "magazines"],
+  "icons": [
+    { "src": "/logo-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/logo-192.png", "sizes": "192x192", "type": "image/png" }
+  ]
+}
