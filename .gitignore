@@ -32,3 +32,6 @@ dist-ssr
 
 # generated social cards (rebuilt by npm run build)
 public/og
+
+# local QA harnesses
+qa-*.tmp.mjs

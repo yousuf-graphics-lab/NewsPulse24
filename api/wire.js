@@ -4,21 +4,18 @@
  *   GET /api/wire?url=<encoded absolute feed URL>
  *
  * Returns the upstream feed body (RSS, Atom, RDF or JSON) with a short cache,
- * or `{ error }` with an honest status. The guard rails live in
- * `server/wire-proxy.js` so the same logic can run under `vite preview` and in
- * tests.
+ * or `{ error }` with an honest status.
+ *
+ * Hardening: same-origin CORS only, per-IP rate limit, optional host allowlist
+ * (`WIRE_ALLOWED_HOSTS`), SSRF guard, 12 s timeout, 1.5 MB cap and XML/JSON
+ * only. The guard rails live in `server/wire-proxy.js` so `vite preview` and
+ * the deployed function behave identically.
  */
-import { fetchWire } from '../server/wire-proxy.js';
-
-const setCors = (res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Accept,Content-Type');
-  res.setHeader('Vary', 'Origin');
-};
+import { allowRequest, applyCors, fetchWire } from '../server/wire-proxy.js';
 
 export default async function handler(req, res) {
-  setCors(res);
+  applyCors(req, res);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
 
   if (req.method === 'OPTIONS') {
     res.status(204).end();
@@ -26,6 +23,13 @@ export default async function handler(req, res) {
   }
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'GET only' });
+    return;
+  }
+
+  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'anon';
+  if (!allowRequest(ip)) {
+    res.setHeader('Retry-After', '60');
+    res.status(429).json({ error: 'Too many feed requests — slow down for a minute' });
     return;
   }
 
@@ -42,7 +46,10 @@ export default async function handler(req, res) {
     return;
   }
 
-  res.setHeader('Content-Type', /json/i.test(result.type || '') ? 'application/json; charset=utf-8' : 'application/xml; charset=utf-8');
+  res.setHeader(
+    'Content-Type',
+    /json/i.test(result.type || '') ? 'application/json; charset=utf-8' : 'application/xml; charset=utf-8',
+  );
   res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
   res.setHeader('X-Wire-Source', result.finalUrl || '');
   res.status(200).send(result.body);

@@ -252,60 +252,62 @@ than two minutes.
 ### The wire agent
 
 `src/lib/automation.js` is the always-on half of the newsroom. It runs inside the app (first tick
-3 s after load, then every 20 s, honouring whatever cadence the operator set), can be started by hand
-from **Wire agent → Run now**, and is **on by default**: a new install arrives with ten live
-channels and auto-publish selected, so the front page fills itself. Nothing is hard-coded once it
-has run — every switch below belongs to the operator.
+3 s after load, then every 20 s, honouring your cadence), can be started by hand from **Wire agent →
+Run now**, and ships **on** with ten live channels, so a new install fills itself.
 
-1. **Collect** — reads the enabled public feeds in `src/lib/feedCatalog.js` (31 channels across
-   nine desks: BBC, Guardian, Al Jazeera, NPR, DW, CNBC, MarketWatch, The Verge, Ars Technica,
-   TechCrunch, Hacker News, NASA, ScienceDaily, Space.com, STAT, ESPN, Variety and more), plus any
-   feed you add. A channel can be **discovered** instead of typed: paste a news site into *Find a
-   channel* and the agent reads the `<link rel="alternate">` tags and common feed paths, then
-   verifies each candidate before offering it.
-   Requests go through a proxy chain — the deployed `api/wire.js` first, then public relays
-   (allorigins, codetabs, corsproxy), then a direct request — and each hop's failure is recorded. The proxy
-   only speaks http(s), refuses private and link-local addresses, caps the response at 1.5 MB,
-   times out after 12 s and only passes XML or JSON back with `s-maxage=300`. `vite dev` and
-   `vite preview` serve the same endpoint from `scripts/vite-wire.mjs`.
-2. **Enrich** — for thin feed items (under 160 characters of summary) the agent fetches the linked
-   article, if the **Read the linked article** rule is on, and folds its description and opening
-   paragraphs into the source copy. Six articles per run, 9 s each, skipped on failure.
-3. **Filter** — parses RSS 2.0, RSS 1.0/RDF, Atom and JSON Feed; drops anything outside the
-   freshness window (36 h by default), under 18 characters of headline or 80 of summary; dedupes by
-   canonical URL (tracking parameters stripped) against the last 400 seen items and the live queue;
-   then scores each candidate 0–100 on recency, copy depth, section confidence, image match and
-   channel trust.
+1. **Collect** — reads the enabled public feeds in `src/lib/feedCatalog.js` (31 channels across nine
+   desks), plus any feed you add, plus anything found by **Find a channel**: paste a news site and
+   the agent reads its advertised feeds, verifies each one and offers them for a click. Requests go
+   through a chain — this site's `/api/wire`, public relays, then direct — and each channel
+   remembers which hop answered (`preferredVia`) so later runs start there.
+2. **Read the report** — `src/lib/articleExtract.js` opens the linked article and pulls out the
+   story itself: the publisher's paragraphs, subheadings and quotes. It scores candidate containers
+   (`[itemprop=articleBody]`, `.article-body`, `.story-entry-content`, `<article>`, `<main>`…), keeps
+   the densest one, and throws away the chrome — cookie banners, related rails, "follow us" lines,
+   bylines, footers. A story with three or more paragraphs of real copy is published as a **full
+   report** (body cut at ~720 words); a shorter page is labelled **brief**. Nothing is invented, and
+   no boilerplate paragraph is appended — the attribution strip on the article page already credits
+   the outlet and links to it.
+3. **Filter** — parses RSS 2.0, RSS 1.0/RDF, Atom and JSON Feed; applies the freshness window
+   (36 h by default); drops items without enough copy; dedupes on canonical URLs (tracking
+   parameters stripped) against the last 400 seen items and the live queue; scores each candidate
+   0–100 on recency, how much reporting was extracted, desk confidence, image match and channel
+   trust.
 4. **Compose** — cleans the headline (drops the outlet suffix, tames SHOUTING, caps the length),
-   writes the standfirst from the lead sentence, builds a multi-paragraph extractive body with a
-   **Key points** list, files the story by whole-word keyword scoring (so `ai` never matches
-   “said”), adds tags, picks a lead image from the newsroom library (or the publisher's own image
-   when that rule is on), and caps SEO title/description at 60 / 155 characters. Every draft carries
-   `attribution { name, url, host, automated: true }` and a visible “assembled by the wire agent”
-   line.
-5. **Publish** — in **Approval** mode drafts wait in the queue for *Publish*, *Edit* or *Reject*;
-   in **Auto-publish** mode they go live immediately, rate-limited to N stories per hour (3 by
-   default) and bounded by the desk allow-list.
+   writes the standfirst from the article's own opening sentences, files the story by whole-word
+   keyword scoring (so `ai` never matches “said”), adds tags from the copy, caps SEO title and
+   description at 60 / 155 characters, and picks a lead image.
+5. **Illustrate** — 19 photographs across the desks, each tagged. The agent scores every candidate
+   on keyword matches and desk affinity, then breaks the tie on **how often that image already
+   appears on the site**, so five World stories in a row get five different pictures rather than the
+   same globe. `Use the source's image` swaps the library for the publisher's own photo when you
+   want that.
+6. **Publish** — **Approval** mode parks drafts in the queue for *Publish*, *Edit* or *Reject*;
+   **Auto-publish** sends them live, rate-limited to N per hour and bounded by the desk allow-list.
+
+#### Optional: the newsroom model
+
+Extraction gives you a real report, but a model can give you a *written* one. `api/write.js` is a
+provider-agnostic rewrite endpoint — one contract, four backends (`openai`, `anthropic`, `gemini`,
+or any OpenAI-compatible gateway). Configure it on the host, never in the browser:
+
+| Variable | Meaning |
+| --- | --- |
+| `AI_API_KEY` | provider key (or `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`) |
+| `AI_PROVIDER` | `openai` (default), `anthropic`, `gemini`, `compatible` |
+| `AI_MODEL` | model id; defaults per provider |
+| `AI_BASE_URL` | base URL for `compatible` (OpenRouter, Groq, Together, a local model…) |
+
+With a key set, the agent sends the strongest extracted reports to the model before publishing and
+gets back a new headline, standfirst, flowing body, desk, tags and SEO fields — still attributed,
+still marked as automated, and rate-limited to a handful of rewrites per run. The prompt forbids
+invented facts, invented numbers and the usual AI tells, and the model's answer is validated before
+it replaces anything. **No key, no problem**: the panel shows `no key set`, the agent publishes the
+extracted report, and nothing else changes. `Wire agent → Rewrite queue` runs the pass by hand.
 
 **Diagnostics.** Every run stores a report: which channels were read, how many items each returned,
-how many were queued or skipped and why, which route answered, and the failure text when a channel
-could not be reached — shown under *Last run* with a **Check route** button. When every channel
-fails before the parser sees a feed, the panel says so plainly: that is a transport problem (a
-hosted preview sandbox with no outbound internet), not a parsing one, and it resolves on a host that
-can reach publishers.
-
-From the panel you control: master switch, publishing mode, cadence, hourly cap, score floor,
-freshness window, desk allow-list, article enrichment, source images, proxy template, per-channel
-on/off and per-channel test, plus catalogue/discovery, and per-item edit, publish, reject and remove.
-
-There is no language model in this bundle, so the copy is extractive and attributed — the agent
-never invents prose and never claims to. A wire story on the public site shows a **Wire report**
-strip naming the original outlet and linking to it (`rel="noreferrer nofollow"`).
-
-Like the rest of the panel, the agent runs in the browser: it works while any tab is open, with a
-cross-tab lock so two tabs never run the same cycle twice. An always-on newsroom wants the same
-`automation.js` running on a server cron with a shared database — the module is framework-free and
-takes a fetch implementation, so it drops in front of `api/wire.js` unchanged.
+queued or skipped and why, which route answered, and the failure text when a channel cannot be
+reached — shown under *Last run* with **Check route**.
 
 ### The database
 
@@ -333,6 +335,32 @@ to the browser that wrote it. Publishing to every visitor needs a database and a
 client-side gate can also be bypassed by anyone with the bundle, which is why the panel is
 `noindex`, disallowed in `robots.txt`, sent `X-Robots-Tag: noindex` and `Cache-Control: no-store`
 from `vercel.json`, and never surfaces credentials in the UI beyond the editorial ID.
+
+**The edge gate.** The passphrase check runs in the browser, which is fine for one operator on a
+laptop and not enough on a public domain. `middleware.js` puts a server-side door in front of
+`/admin` before any of the app is served: set `ADMIN_GATE_USER` and `ADMIN_GATE_PASS` in the hosting
+project and every request needs HTTP Basic credentials, compared in constant time, with
+`X-Robots-Tag: noindex`, `Cache-Control: no-store` and `X-Frame-Options: DENY` on every response
+including the 401. `GET /admin-gate` reports whether the door is armed, and **Security & access**
+shows that state. Use a different, longer secret from the panel passphrase.
+
+**Headers.** `vercel.json` sends a content security policy that only allows same-origin scripts and
+styles (`frame-ancestors 'none'`, `frame-src 'none'`, `object-src 'none'`,
+`upgrade-insecure-requests`), `X-Frame-Options: DENY` against clickjacking, strict referrer and
+permissions policies, HSTS for two years, `Cross-Origin-Opener-Policy: same-origin`,
+`Cross-Origin-Resource-Policy: same-site`, and DNS prefetching switched off.
+
+**The feed proxy.** `/api/wire` cannot hold a secret — the browser calls it — so it is defended by
+behaviour: same-origin CORS only, so no other site can use your deployment as a relay; a per-IP rate
+limit (90 requests a minute); a 1.5 MB body cap; a 12 s timeout; XML/JSON only; an SSRF guard that
+refuses loopback, link-local, private and unique-local addresses; and an optional allowlist via
+`WIRE_ALLOWED_HOSTS=bbc.co.uk,theguardian.com`. `/api/write` is limited to 12 rewrites a minute per
+IP and 24 000 characters of input.
+
+**Dependencies.** `npm audit --omit=dev` is clean — no known vulnerabilities in the production tree
+(react-router 7.18.5, sharp 0.35.5 for build-time image work). The remaining advisories are in the
+dev server's bundler (`esbuild` through Vite 5): they affect `npm run dev` on an untrusted network,
+not the built site, and are avoided by never exposing the dev server publicly.
 
 ## Notes on honesty
 

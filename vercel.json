@@ -22,11 +22,11 @@
         },
         {
           "key": "Permissions-Policy",
-          "value": "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+          "value": "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()"
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; media-src 'self' https:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; media-src 'self' https:; worker-src 'self'; frame-src 'none'; child-src 'none'; object-src 'none'; manifest-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; upgrade-insecure-requests"
         },
         {
           "key": "Strict-Transport-Security",
@@ -43,6 +43,10 @@
         {
           "key": "X-Permitted-Cross-Domain-Policies",
           "value": "none"
+        },
+        {
+          "key": "Cross-Origin-Resource-Policy",
+          "value": "same-site"
         }
       ]
     },
@@ -52,6 +56,10 @@
         {
           "key": "Cache-Control",
           "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Cross-Origin-Resource-Policy",
+          "value": "same-site"
         }
       ]
     },
@@ -61,6 +69,10 @@
         {
           "key": "Cache-Control",
           "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Cross-Origin-Resource-Policy",
+          "value": "same-site"
         }
       ]
     },
@@ -74,6 +86,10 @@
         {
           "key": "Cache-Control",
           "value": "no-store"
+        },
+        {
+          "key": "Cross-Origin-Resource-Policy",
+          "value": "same-site"
         }
       ]
     },
@@ -83,6 +99,10 @@
         {
           "key": "Content-Type",
           "value": "application/xml; charset=utf-8"
+        },
+        {
+          "key": "Cross-Origin-Resource-Policy",
+          "value": "same-site"
         }
       ]
     },
@@ -92,6 +112,10 @@
         {
           "key": "Content-Type",
           "value": "application/rss+xml; charset=utf-8"
+        },
+        {
+          "key": "Cross-Origin-Resource-Policy",
+          "value": "same-site"
         }
       ]
     }

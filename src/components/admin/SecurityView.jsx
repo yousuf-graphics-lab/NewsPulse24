@@ -82,6 +82,23 @@ export default function SecurityView({ session, version, notify, onSignedOut }) 
   const [twoFactorError, setTwoFactorError] = useState('');
   const [lockOnHide, setLockOnHide] = useState(readLockOnHide);
   const [copied, setCopied] = useState(false);
+  const [gate, setGate] = useState({ status: 'checking' });
+
+  /* Asks the deployment whether the server-side door in front of /admin is armed. */
+  useEffect(() => {
+    let alive = true;
+    fetch('/admin-gate', { headers: { accept: 'application/json' }, cache: 'no-store' })
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('no endpoint'))))
+      .then((payload) => {
+        if (alive) setGate({ status: payload.configured ? 'on' : 'off' });
+      })
+      .catch(() => {
+        if (alive) setGate({ status: 'local' });
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -591,14 +608,35 @@ export default function SecurityView({ session, version, notify, onSignedOut }) 
         </Card>
 
         <Card>
-          <SectionHead title="How the gate works" />
+          <SectionHead
+            title="How the gate works"
+            action={
+              <span className="flex items-center gap-1.5">
+                <span
+                  className={cx(
+                    'h-1.5 w-1.5 rounded-full',
+                    gate.status === 'on' ? 'bg-emerald-400' : gate.status === 'off' ? 'bg-amber-400' : 'bg-[#5F616E]',
+                  )}
+                />
+                <MicroLabel>
+                  {gate.status === 'on'
+                    ? 'edge gate armed'
+                    : gate.status === 'off'
+                      ? 'edge gate unset'
+                      : gate.status === 'local'
+                        ? 'local build'
+                        : 'checking'}
+                </MicroLabel>
+              </span>
+            }
+          />
           <ul className="space-y-1.5 px-3.5 py-3 text-[10px] leading-relaxed text-[#8A8C99]">
             {[
               [Fingerprint, 'Username and passphrase compared as constant-time digests.'],
               [Lock, 'Lock-out state lives in localStorage and survives a reload.'],
               [Clock, 'Sessions sit in sessionStorage and expire on idle or after 8 hours.'],
               [Smartphone, 'TOTP codes are checked against a passphrase-sealed secret, ±1 window.'],
-              [ShieldCheck, 'Client-side gating only — anyone with the bundle can bypass the UI check.'],
+              [ShieldCheck, 'This passphrase check runs in the browser. On a public domain, arm the edge gate as well.'],
             ].map(([Icon, text]) => (
               <li key={text} className="flex items-start gap-1.5">
                 <Icon className="mt-[1px] h-3 w-3 shrink-0 text-pulse/75" />
