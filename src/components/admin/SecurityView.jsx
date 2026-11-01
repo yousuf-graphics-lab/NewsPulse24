@@ -644,6 +644,13 @@ export default function SecurityView({ session, version, notify, onSignedOut }) 
               </li>
             ))}
           </ul>
+          {gate.status === 'off' ? (
+            <p className="mx-3.5 mb-3 rounded-[4px] border border-amber-500/25 bg-amber-500/[0.06] px-2.5 py-2 text-[9.5px] leading-relaxed text-amber-200/90">
+              This deployment has no edge gate. Set <span className="font-mono">ADMIN_GATE_USER</span> and{' '}
+              <span className="font-mono">ADMIN_GATE_PASS</span> in the hosting environment so /admin asks for server-side
+              credentials before the app loads.
+            </p>
+          ) : null}
         </Card>
       </div>
 
