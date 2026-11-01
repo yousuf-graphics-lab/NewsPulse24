@@ -336,7 +336,12 @@ client-side gate can also be bypassed by anyone with the bundle, which is why th
 `noindex`, disallowed in `robots.txt`, sent `X-Robots-Tag: noindex` and `Cache-Control: no-store`
 from `vercel.json`, and never surfaces credentials in the UI beyond the editorial ID.
 
-**The edge gate.** The passphrase check runs in the browser, which is fine for one operator on a
+**The edge gate.** `middleware.js` never calls `fetch(request)` — a self-request re-enters the
+same matcher and ends in a `508 INFINITE_LOOP_DETECTED`. It returns `next()` from
+`@vercel/functions` to continue the pipeline with headers attached; `npm test` asserts that no
+self-request is ever made.
+
+The passphrase check runs in the browser, which is fine for one operator on a
 laptop and not enough on a public domain. `middleware.js` puts a server-side door in front of
 `/admin` before any of the app is served: set `ADMIN_GATE_USER` and `ADMIN_GATE_PASS` in the hosting
 project and every request needs HTTP Basic credentials, compared in constant time, with

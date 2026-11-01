@@ -14,7 +14,17 @@
  * Without them the route still resolves — the panel's own passphrase and
  * second factor still apply — but the edge gate reports itself as unset at
  * `GET /admin-gate` so the operator can see the difference.
+ *
+ * ── Why this file never calls fetch() ────────────────────────────────────────
+ * Routing Middleware runs *before* routing. `fetch(request)` on the same URL
+ * sends the request back through the matcher, which runs this function again,
+ * which fetches again — until Vercel's proxy gives up with a 508
+ * INFINITE_LOOP_DETECTED. To pass a request through, return `next()` (from
+ * `@vercel/functions`): it hands the request to the rest of the pipeline
+ * without leaving the edge handler, and it can still attach response headers.
  */
+
+import { next } from '@vercel/functions';
 
 const REALM = 'NewsPulse 24 editorial control room';
 
@@ -27,36 +37,46 @@ const constantTimeEqual = (a, b) => {
   return diff === 0;
 };
 
-const lockHeaders = (headers = new Headers()) => {
-  headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
-  headers.set('Cache-Control', 'no-store, max-age=0');
-  headers.set('X-Frame-Options', 'DENY');
-  headers.set('Referrer-Policy', 'no-referrer');
-  return headers;
-};
+/** Headers every /admin response carries, including the 401. */
+const lockHeaders = (extra = {}) => ({
+  'X-Robots-Tag': 'noindex, nofollow, noarchive',
+  'Cache-Control': 'no-store, max-age=0',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'no-referrer',
+  ...extra,
+});
 
-export default async function middleware(request) {
+const deny = (extra = {}) =>
+  new Response('Authentication required', {
+    status: 401,
+    headers: lockHeaders({
+      'WWW-Authenticate': `Basic realm="${REALM}", charset="UTF-8"`,
+      ...extra,
+    }),
+  });
+
+export default function middleware(request) {
   const { pathname } = new URL(request.url);
 
+  // The panel reads this to show whether the server-side door is armed.
   if (pathname === '/admin-gate') {
     const configured = Boolean(process.env.ADMIN_GATE_USER && process.env.ADMIN_GATE_PASS);
     return new Response(JSON.stringify({ configured }), {
       status: 200,
-      headers: lockHeaders(new Headers({ 'content-type': 'application/json' })),
+      headers: {
+        'content-type': 'application/json',
+        ...lockHeaders(),
+      },
     });
   }
 
   const user = process.env.ADMIN_GATE_USER;
   const pass = process.env.ADMIN_GATE_PASS;
 
+  // Not configured: let the request continue to the app. Explicitly flagged so
+  // the response says why the door is open.
   if (!user || !pass) {
-    const headers = lockHeaders();
-    headers.set('X-Admin-Gate', 'unset');
-    return fetch(request).then((response) => {
-      const merged = new Headers(response.headers);
-      for (const [key, value] of headers.entries()) merged.set(key, value);
-      return new Response(response.body, { status: response.status, headers: merged });
-    });
+    return next({ headers: lockHeaders({ 'X-Admin-Gate': 'unset' }) });
   }
 
   const header = request.headers.get('authorization') || '';
@@ -65,26 +85,24 @@ export default async function middleware(request) {
     try {
       decoded = atob(header.slice(6));
     } catch {
-      decoded = '';
+      // Malformed base64 is just a failed attempt, not an error.
+      return deny({ 'X-Admin-Gate': 'malformed' });
     }
     const index = decoded.indexOf(':');
     const givenUser = index >= 0 ? decoded.slice(0, index) : '';
     const givenPass = index >= 0 ? decoded.slice(index + 1) : '';
+
     if (constantTimeEqual(givenUser, user) && constantTimeEqual(givenPass, pass)) {
-      const response = await fetch(request);
-      const merged = new Headers(response.headers);
-      for (const [key, value] of lockHeaders().entries()) merged.set(key, value);
-      merged.set('X-Admin-Gate', 'passed');
-      return new Response(response.body, { status: response.status, headers: merged });
+      // Continue the pipeline — this is the line that used to be `fetch(request)`.
+      return next({ headers: lockHeaders({ 'X-Admin-Gate': 'passed' }) });
     }
+    return deny({ 'X-Admin-Gate': 'rejected' });
   }
 
-  return new Response('Authentication required', {
-    status: 401,
-    headers: lockHeaders(new Headers({ 'WWW-Authenticate': `Basic realm="${REALM}", charset="UTF-8"` })),
-  });
+  return deny({ 'X-Admin-Gate': 'missing' });
 }
 
 export const config = {
-  matcher: ['/admin', '/admin/', '/admin/:path*', '/admin-gate'],
+  // `/admin` and everything under it, plus the status endpoint the panel polls.
+  matcher: ['/admin', '/admin/:path*', '/admin-gate'],
 };
