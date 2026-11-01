@@ -48,6 +48,56 @@ const FEED_ACCEPT =
 
 export const MAX_BYTES = 1_500_000;
 
+/* --------------------------------------------------------------- guardrails */
+
+const RATE_WINDOW_MS = 60_000;
+const RATE_MAX = 90;
+const buckets = new Map();
+
+/**
+ * Per-caller token bucket. The proxy is public by nature — it has to be, since
+ * the browser calls it — so the defence is a ceiling per IP, a hard cap on
+ * concurrent work per process, and an optional host allowlist.
+ */
+export const allowRequest = (ip, { max = RATE_MAX, windowMs = RATE_WINDOW_MS } = {}) => {
+  const key = String(ip || 'anon');
+  const now = Date.now();
+  const recent = (buckets.get(key) || []).filter((at) => now - at < windowMs);
+  recent.push(now);
+  buckets.set(key, recent);
+  if (buckets.size > 1000) buckets.clear();
+  return recent.length <= max;
+};
+
+/** WIRE_ALLOWED_HOSTS=a.example,b.example restricts the proxy to those hosts. */
+export const hostAllowed = (hostname) => {
+  const list = String(process.env.WIRE_ALLOWED_HOSTS || '')
+    .split(',')
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+  if (!list.length) return true;
+  const host = String(hostname || '').toLowerCase();
+  return list.some((entry) => host === entry || host.endsWith(`.${entry}`));
+};
+
+/** CORS for a same-origin browser client only — no third-party relay use. */
+export const applyCors = (req, res) => {
+  const origin = req.headers?.origin;
+  const host = req.headers?.host;
+  if (origin && host) {
+    try {
+      if (new URL(origin).host === host) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Vary', 'Origin');
+      }
+    } catch {
+      /* malformed origin — send no CORS header at all */
+    }
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Accept,Content-Type');
+};
+
 export { isPrivateHost };
 
 export const isAllowedUrl = (raw, { allowLocal = false } = {}) => {
@@ -82,8 +132,12 @@ export const fetchWire = async (
   raw,
   { allowLocal = false, timeoutMs = 12_000, accept = FEED_ACCEPT } = {},
 ) => {
+  if (String(raw).length > 2048) return { ok: false, status: 414, error: 'that URL is too long' };
   const check = isAllowedUrl(raw, { allowLocal });
   if (!check.ok) return { ok: false, status: 400, error: check.reason };
+  if (!allowLocal && !hostAllowed(check.target.hostname)) {
+    return { ok: false, status: 403, error: 'that publisher is not on the proxy allowlist' };
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);

@@ -50,6 +50,7 @@ import {
   updateAutomation,
 } from '../../lib/automation';
 import { formatNumber, relativeClock } from '../../lib/telemetry';
+import { aiStatus } from '../../lib/aiWriter';
 
 const QUEUE_TABS = [
   { id: 'pending', label: 'Pending' },
@@ -104,6 +105,9 @@ export default function WireAutomation({ version, notify, onEditDraft }) {
   const [catalogueOpen, setCatalogueOpen] = useState(false);
   const [route, setRoute] = useState(null);
   const [checking, setChecking] = useState(false);
+  const [ai, setAi] = useState(() => agent.ai || { enabled: false, endpoint: '/api/write', maxPerRun: 2 });
+  const [aiState, setAiState] = useState({ status: 'unknown' });
+  const [rewriting, setRewriting] = useState(false);
   const [rules, setRules] = useState(() => ({
     mode: agent.mode,
     intervalMinutes: agent.intervalMinutes,
@@ -244,6 +248,7 @@ export default function WireAutomation({ version, notify, onEditDraft }) {
       maxPerHour: Number(rules.maxPerHour) || 3,
       minScore: Number(rules.minScore) || 0,
       maxAgeHours: Number(rules.maxAgeHours) || 36,
+      ai: { ...ai, maxPerRun: Number(ai.maxPerRun) || 2 },
     });
     notify('Agent rules saved', 'success');
   };
@@ -278,6 +283,35 @@ export default function WireAutomation({ version, notify, onEditDraft }) {
       return;
     }
     notify('Published with source attribution', 'success');
+  };
+
+  const probeAi = async (endpoint = ai.endpoint) => {
+    setAiState({ status: 'checking' });
+    const status = await aiStatus(endpoint);
+    setAiState({ status: status.reachable ? (status.configured ? 'ready' : 'nokey') : 'offline', ...status });
+  };
+
+  useEffect(() => {
+    probeAi(ai.endpoint);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const rewriteAll = async () => {
+    if (rewriting) return;
+    setRewriting(true);
+    const { rewriteQueueItem } = await import('../../lib/aiWriter');
+    const targets = agent.queue.filter((item) => item.status === 'pending').slice(0, 6);
+    let done = 0;
+    for (const item of targets) {
+      // eslint-disable-next-line no-await-in-loop
+      const result = await rewriteQueueItem(item.id, { endpoint: ai.endpoint });
+      if (result.ok) done += 1;
+    }
+    setRewriting(false);
+    notify(
+      done ? `Rewrote ${done} draft${done === 1 ? '' : 's'}` : 'No rewrite: the model is not configured on this deployment',
+      done ? 'success' : 'error',
+    );
   };
 
   const catalogueBySection = useMemo(() => {
@@ -673,6 +707,12 @@ export default function WireAutomation({ version, notify, onEditDraft }) {
                         <div className="flex flex-wrap items-center gap-1.5">
                           <Tag tone={item.status === 'published' ? 'green' : item.status === 'rejected' ? 'red' : 'amber'}>{item.status}</Tag>
                           <Tag>{item.draft.category}</Tag>
+                          <Tag tone={item.draft.report === 'full' ? 'green' : 'amber'}>
+                            {item.draft.report === 'full' ? 'full report' : 'brief'}
+                          </Tag>
+                          <Tag tone={item.draft.written === 'model' ? 'red' : undefined}>
+                            {item.draft.written === 'model' ? 'rewritten' : 'extracted'}
+                          </Tag>
                           <span className="text-[9px] text-[#6F7180]">
                             {item.sourceName} · {relativeClock(item.publishedAt || item.fetchedAt)}
                           </span>
@@ -743,7 +783,8 @@ export default function WireAutomation({ version, notify, onEditDraft }) {
                         </div>
                         <p className="mt-2 flex flex-wrap items-center gap-2 border-t border-[#1D1E25] pt-2 text-[9px] text-[#6F7180]">
                           <Info className="h-3 w-3" />
-                          SEO title “{item.draft.seo?.title}” · {item.draft.seo?.keywords?.length || 0} keywords · source{' '}
+                          {item.draft.wordCount ? `${item.draft.wordCount} words · ` : ''}SEO title “{item.draft.seo?.title}” ·{' '}
+                          {item.draft.seo?.keywords?.length || 0} keywords · source{' '}
                           <span className="font-mono text-[#8A8C99]">{item.draft.attribution?.host}</span>
                         </p>
                       </div>
@@ -859,6 +900,72 @@ export default function WireAutomation({ version, notify, onEditDraft }) {
                 hint="Fetches up to six articles per run so thin feed summaries become a full standfirst and body. Slower, better copy."
               />
 
+              <div className="rounded-[4px] border border-[#22232A] bg-[#0A0B0F] p-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="h-3 w-3 text-pulse-400" />
+                    <MicroLabel tone="bright">Newsroom model (optional)</MicroLabel>
+                  </span>
+                  <span
+                    className={cx(
+                      'rounded-[3px] border px-1.5 py-[2px] font-mono text-[8.5px] uppercase tracking-[0.1em]',
+                      aiState.status === 'ready'
+                        ? 'border-emerald-500/35 text-emerald-300'
+                        : aiState.status === 'nokey'
+                          ? 'border-amber-500/35 text-amber-300'
+                          : 'border-[#2A2C36] text-[#7A7C89]',
+                    )}
+                  >
+                    {aiState.status === 'checking'
+                      ? 'checking'
+                      : aiState.status === 'ready'
+                        ? `${aiState.provider} · ${aiState.model}`
+                        : aiState.status === 'nokey'
+                          ? 'no key set'
+                          : aiState.status === 'offline'
+                            ? 'endpoint offline'
+                            : 'unknown'}
+                  </span>
+                </div>
+                <p className="mt-1 text-[9.5px] leading-relaxed text-[#7A7C89]">
+                  With a key set on the server, strong drafts are rewritten by the model before publishing — new headline,
+                  standfirst and flowing body, still attributed. Without one, the extracted report publishes as it is.
+                </p>
+                <div className="mt-2 flex flex-wrap items-end gap-1.5">
+                  <Field label="Endpoint" className="min-w-[170px] flex-1">
+                    <TextInput
+                      value={ai.endpoint}
+                      onChange={(event) => setAi({ ...ai, endpoint: event.target.value })}
+                      placeholder="/api/write"
+                      className="h-8 font-mono text-[10px]"
+                    />
+                  </Field>
+                  <Field label="Max / run" className="w-[86px]">
+                    <TextInput
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={ai.maxPerRun}
+                      onChange={(event) => setAi({ ...ai, maxPerRun: event.target.value })}
+                      className="h-8"
+                    />
+                  </Field>
+                  <Button variant="quiet" size="sm" onClick={() => probeAi(ai.endpoint)}>
+                    <Radar className="h-3 w-3" /> Test
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={rewriteAll} disabled={rewriting || !pending}>
+                    <Sparkles className={cx('h-3 w-3', rewriting && 'animate-pulse')} /> {rewriting ? 'Writing…' : 'Rewrite queue'}
+                  </Button>
+                </div>
+                <div className="mt-2">
+                  <Toggle
+                    checked={ai.enabled}
+                    onChange={(enabled) => setAi({ ...ai, enabled })}
+                    label="Rewrite with the newsroom model before publishing"
+                  />
+                </div>
+              </div>
+
               <Field label="Fetch proxy" hint="Use {url} where the encoded feed URL goes. /api/wire ships with this site; public relays are tried after it.">
                 <TextInput
                   value={rules.proxy}
@@ -903,7 +1010,7 @@ export default function WireAutomation({ version, notify, onEditDraft }) {
             <ul className="space-y-1.5 px-3.5 py-3 text-[10px] leading-relaxed text-[#8A8C99]">
               {[
                 'Reads the newest items from each enabled channel through /api/wire, then public relays, then direct.',
-                'Reads the linked article (optional) for a fuller standfirst, body and key points. Extractive, not generated.',
+                'Reads the linked article and publishes its report — the publisher’s own paragraphs, subheads and quotes.',
                 'Files each story by keyword and desk, adds tags, SEO title/description and a matching lead image.',
                 'Every automated story carries a source link and is marked as a wire report.',
                 'Runs in this browser while a tab is open. An always-on newsroom needs the same logic on a server cron.',
