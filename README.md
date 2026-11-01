@@ -367,6 +367,17 @@ IP and 24 000 characters of input.
 dev server's bundler (`esbuild` through Vite 5): they affect `npm run dev` on an untrusted network,
 not the built site, and are avoided by never exposing the dev server publicly.
 
+## Analytics
+
+Vercel Web Analytics is mounted in `src/main.jsx` with the **React** entry (`@vercel/analytics/react`
+— not `/next`, which is for Next.js apps). In production it loads the same-origin
+`/_vercel/insights/script.js`, so the deployed CSP (`script-src 'self'`) needs no exception, and SPA
+route changes are counted automatically from `pushState`. A `beforeSend` filter drops anything on
+`/admin`: the control room is noindex and its traffic is not reported.
+
+To see data, enable **Web Analytics** for the project in the Vercel dashboard and deploy — it does
+nothing on `vite preview` or any non-Vercel host.
+
 ## Notes on honesty
 
 

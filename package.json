@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
+    "@vercel/analytics": "^2.0.1",
     "@vercel/functions": "^3.10.5",
     "d3-geo": "^3.1.1",
     "framer-motion": "^14.9.0",
