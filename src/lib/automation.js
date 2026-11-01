@@ -26,7 +26,9 @@
  */
 import { AUTHORS, CATEGORIES } from '../data/news';
 import { read, write } from './db';
+import { rewriteQueueItem } from './aiWriter';
 import { FEED_CATALOG, PUBLIC_PROXIES, sourceFromChannel } from './feedCatalog';
+import { extractArticle, hasFullReport } from './articleExtract';
 import { publish, slugTaken } from './contentStore';
 
 /* ------------------------------------------------------------------ presets */
@@ -35,27 +37,36 @@ export const AUTOMATION_PRESETS = FEED_CATALOG;
 export { FEED_CATALOG, PUBLIC_PROXIES };
 
 const IMAGE_LIBRARY = [
-  { file: 'hero-earth.jpg', alt: 'Planet Earth at night wrapped in glowing data networks', tags: ['world', 'global', 'climate', 'united nations', 'diplomacy', 'summit', 'earth', 'planet'] },
-  { file: 'capitol.jpg', alt: 'The dome of a national legislature lit at dusk', tags: ['politics', 'election', 'parliament', 'congress', 'senate', 'government', 'policy', 'law', 'minister', 'president'] },
-  { file: 'markets.jpg', alt: 'Traders and screens on a busy trading floor', tags: ['markets', 'stocks', 'economy', 'inflation', 'rates', 'bank', 'trade', 'tariff', 'oil', 'currency', 'investors', 'shares'] },
-  { file: 'ai-robot.jpg', alt: 'A humanoid robot beside a person in a laboratory', tags: ['ai', 'artificial intelligence', 'robot', 'machine learning', 'chip', 'software', 'semiconductor', 'model', 'openai', 'google'] },
-  { file: 'robot-hand.jpg', alt: 'A robotic hand reaching towards a human hand', tags: ['automation', 'research', 'engineering', 'lab', 'scientists'] },
-  { file: 'rocket.jpg', alt: 'A rocket lifting off through a cloud of exhaust', tags: ['space', 'rocket', 'launch', 'satellite', 'mars', 'moon', 'astronomy', 'nasa', 'spacex', 'orbit'] },
-  { file: 'medical.jpg', alt: 'A clinician reviewing a scan in a research hospital', tags: ['health', 'hospital', 'vaccine', 'virus', 'disease', 'medicine', 'cancer', 'drug', 'who', 'patients', 'mental'] },
-  { file: 'football.jpg', alt: 'A footballer striking the ball under stadium lights', tags: ['football', 'soccer', 'sport', 'league', 'cup', 'olympic', 'tennis', 'cricket', 'match', 'coach', 'striker'] },
-  { file: 'live-studio.jpg', alt: 'The NewsPulse 24 broadcast studio in action', tags: ['media', 'broadcast', 'television', 'streaming', 'film', 'series', 'music', 'album', 'actor'] },
-  { file: 'summit.jpg', alt: 'Delegates gathered in a summit hall', tags: ['summit', 'conference', 'talks', 'treaty', 'agreement', 'cop', 'delegates', 'g20'] },
+  { file: 'hero-earth.jpg', alt: 'Planet Earth at night wrapped in glowing data networks', tags: ['world', 'global', 'climate', 'united nations', 'diplomacy', 'summit', 'earth', 'planet', 'international'] },
+  { file: 'capitol.jpg', alt: 'The dome of a national legislature lit at dusk', tags: ['politics', 'election', 'parliament', 'congress', 'senate', 'government', 'policy', 'law', 'minister', 'president', 'vote', 'budget'] },
+  { file: 'press-conference.jpg', alt: 'Microphones on a lectern at a press conference', tags: ['spokesperson', 'briefing', 'press', 'statement', 'announced', 'official', 'ministry', 'talks'] },
+  { file: 'markets.jpg', alt: 'Traders and screens on a busy trading floor', tags: ['markets', 'stocks', 'economy', 'inflation', 'rates', 'bank', 'trade', 'tariff', 'oil', 'currency', 'investors', 'shares', 'earnings', 'gdp'] },
+  { file: 'city-night.jpg', alt: 'Commuters crossing a rain-soaked city intersection at night', tags: ['city', 'transport', 'commuters', 'traffic', 'urban', 'housing', 'infrastructure', 'strike', 'weather'] },
+  { file: 'energy-grid.jpg', alt: 'Wind turbines and power lines against a dusk sky', tags: ['energy', 'power', 'electricity', 'renewable', 'wind', 'grid', 'oil', 'gas', 'emissions', 'carbon', 'climate'] },
+  { file: 'ai-robot.jpg', alt: 'A humanoid robot beside a person in a laboratory', tags: ['ai', 'artificial intelligence', 'robot', 'machine learning', 'chip', 'software', 'semiconductor', 'model', 'openai', 'chatbot', 'algorithm'] },
+  { file: 'robot-hand.jpg', alt: 'A robotic hand reaching towards a human hand', tags: ['automation', 'research', 'engineering', 'lab', 'scientists', 'robotics', 'innovation'] },
+  { file: 'mobile-tech.jpg', alt: 'A smartphone glowing in a dark room with servers behind', tags: ['phone', 'mobile', 'app', 'platform', 'social media', 'data', 'privacy', 'cyber', 'hack', 'online', 'internet', 'digital'] },
+  { file: 'rocket.jpg', alt: 'A rocket lifting off through a cloud of exhaust', tags: ['space', 'rocket', 'launch', 'satellite', 'mars', 'moon', 'astronomy', 'nasa', 'spacex', 'orbit', 'mission'] },
+  { file: 'lab-research.jpg', alt: 'Scientists examining a sample in a darkened laboratory', tags: ['study', 'research', 'scientists', 'trial', 'laboratory', 'discovery', 'experiment', 'peer-reviewed'] },
+  { file: 'medical.jpg', alt: 'A clinician reviewing a scan in a research hospital', tags: ['health', 'hospital', 'vaccine', 'virus', 'disease', 'medicine', 'cancer', 'drug', 'who', 'patients', 'mental', 'outbreak'] },
+  { file: 'hospital-ward.jpg', alt: 'Staff walking through a hospital corridor at night', tags: ['hospital', 'nurses', 'doctors', 'ward', 'emergency', 'ambulance', 'patients', 'surgery', 'nhs'] },
+  { file: 'flood-street.jpg', alt: 'Residents wading through a flooded coastal street', tags: ['flood', 'storm', 'hurricane', 'typhoon', 'disaster', 'rescue', 'coastal', 'climate', 'evacuation', 'rain'] },
+  { file: 'football.jpg', alt: 'A footballer striking the ball under stadium lights', tags: ['football', 'soccer', 'league', 'cup', 'match', 'striker', 'coach', 'premier', 'fifa', 'transfer'] },
+  { file: 'stadium-night.jpg', alt: 'A packed stadium under floodlights at night', tags: ['sport', 'stadium', 'olympic', 'tennis', 'cricket', 'crowd', 'final', 'championship', 'athletics', 'nba'] },
+  { file: 'live-studio.jpg', alt: 'A television studio lit for broadcast', tags: ['media', 'broadcast', 'television', 'streaming', 'film', 'series', 'music', 'album', 'actor', 'interview'] },
+  { file: 'cinema-night.jpg', alt: 'A cinema marquee glowing on a wet street at night', tags: ['cinema', 'movie', 'film', 'premiere', 'box office', 'awards', 'festival', 'hollywood', 'director'] },
+  { file: 'summit.jpg', alt: 'Delegates gathered in a summit hall', tags: ['summit', 'conference', 'talks', 'treaty', 'agreement', 'cop', 'delegates', 'g20', 'g7', 'nato', 'negotiations'] },
 ];
 
 const SECTION_KEYWORDS = {
-  World: ['world', 'global', 'nation', 'war', 'conflict', 'ceasefire', 'border', 'refugees', 'refugee', 'united nations', 'summit', 'diplomat', 'election', 'sanction', 'government', 'military', 'peace'],
+  World: ['world', 'global', 'nation', 'war', 'conflict', 'ceasefire', 'border', 'refugees', 'refugee', 'united nations', 'summit', 'diplomat', 'election', 'sanction', 'government', 'military', 'peace', 'coastal', 'authorities', 'flood', 'disaster', 'storm', 'evacuation', 'residents', 'council', 'aid'],
   Business: ['market', 'economy', 'inflation', 'rate', 'stock', 'bank', 'trade', 'tariff', 'company', 'earnings', 'oil', 'currency', 'gdp', 'investor', 'merger', 'jobs', 'retail'],
   Technology: ['ai', 'artificial intelligence', 'technology', 'software', 'chip', 'semiconductor', 'robot', 'app', 'platform', 'cyber', 'data', 'startup', 'device', 'model', 'cloud'],
   Science: ['science', 'space', 'nasa', 'rocket', 'satellite', 'research', 'study', 'climate', 'physics', 'mars', 'moon', 'discovery', 'species', 'scientists', 'orbit'],
   Health: ['health', 'hospital', 'disease', 'virus', 'vaccine', 'medicine', 'cancer', 'clinicians', 'drug', 'mental', 'outbreak', 'patients', 'clinical'],
   Sports: ['football', 'soccer', 'sport', 'league', 'cup', 'match', 'olympic', 'tennis', 'cricket', 'formula', 'nba', 'fifa', 'coach', 'player', 'striker'],
   Entertainment: ['film', 'movie', 'music', 'album', 'television', 'series', 'actor', 'festival', 'award', 'studio', 'hollywood', 'streaming', 'box office'],
-  Lifestyle: ['travel', 'food', 'design', 'home', 'fashion', 'wellness', 'city', 'culture', 'recipe', 'hotel'],
+  Lifestyle: ['travel', 'food', 'design', 'home', 'fashion', 'wellness', 'culture', 'recipe', 'hotel', 'cooking', 'gardening', 'parenting'],
   Opinion: ['opinion', 'analysis', 'editorial', 'column', 'comment', 'why we', 'the case for'],
 };
 
@@ -291,8 +302,11 @@ const proxyChain = (config, preferred = '') => {
   return index > 0 ? [chain[index], ...chain.filter((_, i) => i !== index)] : chain;
 };
 
-const materialise = (template, url) =>
-  template.includes('{url}') ? template.replace('{url}', encodeURIComponent(url)) : template;
+const materialise = (template, url) => {
+  // `{url}` on its own means "direct": the feed URL goes out unencoded.
+  if (template === '{url}') return url;
+  return template.includes('{url}') ? template.replace('{url}', encodeURIComponent(url)) : template;
+};
 
 const hopLabel = (template) => {
   if (template === '{url}') return 'direct';
@@ -370,34 +384,31 @@ export const fetchFeed = async (source, config = readAutomation()) => {
   return items;
 };
 
-/** Pulls one article page and lifts its lead image and opening paragraphs. */
-export const enrichArticle = async (item, config = readAutomation()) => {
+/**
+ * Pulls one article page and extracts the report itself.
+ *
+ * This is what separates a headline feed from a newspaper: the publisher's
+ * paragraphs, subheadings and quotes become the story body, with the blurb
+ * kept as a fallback when the page is paywalled or script-rendered.
+ */
+export const enrichArticle = async (item, config = readAutomation(), source = null) => {
   if (!/^https?:\/\//i.test(item.url || '')) return item;
-  for (const template of proxyChain(config)) {
+  const preferred = source?.preferredVia || '';
+  for (const template of proxyChain(config, preferred)) {
     try {
-      const html = await requestText(materialise(template, item.url), 9_000);
+      const html = await requestText(materialise(template, item.url), 11_000);
       if (!/<html|<article|<p/i.test(html)) continue;
 
-      const ogDescription = html.match(/property=["']og:description["'][^>]+content=["']([^"']+)/i)?.[1] || '';
-      const ogImage = html.match(/property=["']og:image["'][^>]+content=["']([^"']+)/i)?.[1] || '';
-      const paragraphs = [...html.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)]
-        .map((match) => stripHtml(match[1]))
-        .filter((text) => text.length > 70 && !/cookie|subscribe|newsletter|sign up|advertisement/i.test(text))
-        .slice(0, 6)
-        .join(' ');
-
-      const extra = stripHtml(ogDescription);
-      const summary = [stripHtml(item.summary), extra, paragraphs]
-        .filter(Boolean)
-        .join(' ')
-        .replace(/\s+/g, ' ')
-        .slice(0, 6_000);
+      const article = extractArticle(html);
+      if (!article.blocks.length) continue;
 
       return {
         ...item,
-        summary: summary.length > (item.summary || '').length ? summary : item.summary,
-        image: item.image || ogImage,
+        article,
+        summary: article.description || item.summary || '',
+        image: item.image || article.image,
         enriched: true,
+        fullReport: hasFullReport(article),
       };
     } catch {
       /* try the next hop */
@@ -447,38 +458,69 @@ const classify = (text, sourceSection) => {
   return { section: score > 0 ? section : 'World', confidence: Math.min(1, Number(score) / 4) };
 };
 
+/**
+ * Every image in the library, grouped by the desks it suits. The agent picks
+ * from the candidate pool rather than one fixed picture per desk, and it
+ * prefers whichever candidate is used least across the live site — so a run of
+ * World stories never ends up with the same photograph four times.
+ */
 const SECTION_IMAGE = {
-  World: 'hero-earth.jpg',
-  Business: 'markets.jpg',
-  Technology: 'ai-robot.jpg',
-  Science: 'rocket.jpg',
-  Health: 'medical.jpg',
-  Sports: 'football.jpg',
-  Entertainment: 'live-studio.jpg',
-  Lifestyle: 'live-studio.jpg',
-  Opinion: 'capitol.jpg',
+  World: ['hero-earth.jpg', 'summit.jpg', 'press-conference.jpg', 'city-night.jpg'],
+  Business: ['markets.jpg', 'press-conference.jpg', 'city-night.jpg', 'energy-grid.jpg'],
+  Technology: ['ai-robot.jpg', 'mobile-tech.jpg', 'robot-hand.jpg', 'live-studio.jpg'],
+  Science: ['rocket.jpg', 'lab-research.jpg', 'robot-hand.jpg', 'hero-earth.jpg'],
+  Health: ['medical.jpg', 'hospital-ward.jpg', 'lab-research.jpg'],
+  Sports: ['football.jpg', 'stadium-night.jpg'],
+  Entertainment: ['cinema-night.jpg', 'live-studio.jpg', 'city-night.jpg'],
+  Lifestyle: ['city-night.jpg', 'live-studio.jpg', 'energy-grid.jpg', 'summit.jpg'],
+  Opinion: ['capitol.jpg', 'press-conference.jpg', 'summit.jpg'],
 };
 
-const pickImage = (text, seed = '', section = '') => {
+/** How many times each library image already appears on the site. */
+export const imageUsage = () => {
+  const usage = new Map();
+  let state;
+  try {
+    state = read();
+  } catch {
+    return usage;
+  }
+  const count = (path) => {
+    if (!path || !path.startsWith('/images/')) return;
+    usage.set(path, (usage.get(path) || 0) + 1);
+  };
+  for (const post of state.posts || []) count(post.image);
+  for (const entry of state.automation?.queue || []) count(entry.draft?.image);
+  return usage;
+};
+
+const pickImage = (text, seed = '', section = '', usage = new Map()) => {
   const has = wordMatcher(text);
-  let best = IMAGE_LIBRARY[0];
-  let bestScore = 0;
-  for (const image of IMAGE_LIBRARY) {
-    const score = image.tags.reduce((total, keyword) => total + (has(keyword) ? 1 : 0), 0);
-    if (score > bestScore) {
-      best = image;
-      bestScore = score;
-    }
+  const candidateFiles = new Set(SECTION_IMAGE[section] || []);
+  const scored = IMAGE_LIBRARY.map((image) => {
+    const matches = image.tags.reduce((total, keyword) => total + (has(keyword) ? 1 : 0), 0);
+    const path = `/images/${image.file}`;
+    const used = usage.get(path) || 0;
+    const deskBonus = candidateFiles.has(image.file) ? 2 : 0;
+    // Keyword match wins, then desk affinity, then whichever is least used.
+    return { image, score: matches * 10 + deskBonus - used * 3 };
+  }).sort((a, b) => b.score - a.score);
+
+  const best = scored[0];
+  const matched = best.score >= 10;
+  if (matched) {
+    return { path: `/images/${best.image.file}`, alt: best.image.alt, matched: true };
   }
-  if (bestScore === 0) {
-    // No keyword match: fall back to the desk's own picture, then rotate
-    // through the library so the front page does not repeat one image.
-    const deskFile = SECTION_IMAGE[section];
-    const byDesk = deskFile && IMAGE_LIBRARY.find((image) => image.file === deskFile);
-    const index = parseInt(hash(seed), 36) % IMAGE_LIBRARY.length;
-    best = byDesk || IMAGE_LIBRARY[index];
-  }
-  return { path: `/images/${best.file}`, alt: best.alt, matched: bestScore > 0 };
+
+  // No keyword hit: rotate through the desk pool first, least-used first, then
+  // widen to the whole library if every desk image is already in play.
+  const pool = (SECTION_IMAGE[section] || []).map((file) => IMAGE_LIBRARY.find((image) => image.file === file)).filter(Boolean);
+  const ordered = (pool.length ? pool : IMAGE_LIBRARY)
+    .map((image) => ({ image, used: usage.get(`/images/${image.file}`) || 0 }))
+    .sort((a, b) => a.used - b.used || parseInt(hash(`${seed}${a.image.file}`), 36) - parseInt(hash(`${seed}${b.image.file}`), 36));
+
+  const chosen = ordered[0]?.image || best.image;
+  return { path: `/images/${chosen.file}`, alt: chosen.alt, matched: false };
 };
 
 const authorFor = (section) =>
@@ -525,57 +567,99 @@ export const cleanTitle = (value) => {
 };
 
 /** Turns one feed item into a complete, attributed story draft. */
-export const buildDraft = (item, source, { useSourceImages = false } = {}) => {
+const MAX_REPORT_WORDS = 720;
+const MAX_REPORT_BLOCKS = 18;
+
+const countWords = (text) => String(text || '').split(/\s+/).filter(Boolean).length;
+
+/** Trims an extracted report to a readable length, keeping its own structure. */
+const reportBlocks = (article, leadText = '') => {
+  const out = [];
+  let words = 0;
+
+  for (const block of article.blocks) {
+    if (out.length >= MAX_REPORT_BLOCKS || words >= MAX_REPORT_WORDS) break;
+    if (block.type === 'p' && leadText && block.text.startsWith(leadText.slice(0, 60))) continue;
+    if (block.type === 'list' && (block.items || []).length < 3) continue;
+    if (block.type === 'h2' && out.length === 0) continue;
+
+    const size = countWords(block.text || (block.items || []).join(' '));
+    if (words + size > MAX_REPORT_WORDS + 120) continue;
+    out.push(block);
+    words += size;
+  }
+  return out;
+};
+
+/** Standfirst for an extracted report: the article's own opening sentences. */
+const standfirstFrom = (article) => {
+  const first = article.paragraphs[0] || '';
+  const parts = first.split(/(?<=[.!?])\s+/);
+  let out = parts[0] || first;
+  if (out.length < 110 && parts[1]) out = `${parts[0]} ${parts[1]}`;
+  return out.length > 240 ? `${out.slice(0, 237).trim()}…` : out.trim();
+};
+
+/**
+ * Turns one feed item into a complete, attributed story draft.
+ *
+ * With an extracted article the body is the publisher's own report, cut to a
+ * readable length and kept in its original order — paragraphs, subheads and
+ * quotes. Without one, the body is composed from the feed copy. Neither path
+ * adds boilerplate paragraphs, which is what made earlier drafts read like a
+ * template.
+ */
+export const buildDraft = (item, source, { useSourceImages = false, imageUsage } = {}) => {
   const title = cleanTitle(item.title);
   const summary = stripHtml(item.summary);
+  const article = item.article;
+  // Any page with a couple of real paragraphs is publishable; a "full report"
+  // is the label for one long enough to stand alone.
+  const articleReady = Boolean(article && article.wordCount >= 40 && article.paragraphs.length >= 2);
+  const fullReport = hasFullReport(article);
   if (!title || title.length < 18) return null;
-  if (summary.length < 80) return null;
+  if (!articleReady && summary.length < 80) return null;
 
-  const { section, confidence } = classify(`${title} ${summary}`, source.section);
-  const image = pickImage(`${title} ${summary}`, item.url || title, section);
-  const list = sentences(summary);
-  const cleaned = list.length ? list : [summary];
-  const lead = (cleaned[0] || summary).slice(0, 240);
-  const standfirst = lead.length >= 30 ? lead : `${title} — the latest from ${source.name}.`.slice(0, 220);
+  const sourceText = articleReady ? `${title} ${article.paragraphs.slice(0, 3).join(' ')}` : `${title} ${summary}`;
+  const { section, confidence } = classify(sourceText, source.section);
+  const image = pickImage(sourceText, item.url || title, section, imageUsage);
 
-  // The standfirst already carries sentence one, so the body continues from
-  // sentence two — no repeat, and the paragraphs follow the source's order.
-  const rest = cleaned.length > 1 ? cleaned.slice(1) : [];
-  if (!rest.length) {
-    // One-sentence source copy: continue the story after the standfirst
-    // instead of repeating the standfirst as the first paragraph.
-    const tail = summary.slice(lead.length).trim();
-    if (tail.length > 60) {
-      rest.push(tail);
-    } else {
-      const parts = summary.split(/(?<=,)\s+/);
-      if (parts.length > 2) rest.push(parts.slice(1).join(' '));
+  let standfirst;
+  let body;
+
+  if (articleReady) {
+    standfirst = standfirstFrom(article);
+    body = reportBlocks(article, article.paragraphs[0]);
+    // A short report still reads better with its own closing section than
+    // with an invented one; if it is very short, add the publisher's blurb.
+    if (body.filter((block) => block.type === 'p').length < 2 && summary.length > 80) {
+      body.push({ type: 'p', text: summary });
+    }
+  } else {
+    const list = sentences(summary);
+    const cleaned = list.length ? list : [summary];
+    const lead = (cleaned[0] || summary).slice(0, 240);
+    standfirst = lead.length >= 30 ? lead : `${title} — the latest from ${source.name}.`.slice(0, 220);
+    const rest = cleaned.length > 1 ? cleaned.slice(1) : [];
+    body = [];
+    for (const chunk of [rest.slice(0, 3), rest.slice(3, 6), rest.slice(6, 9)]) {
+      if (chunk.length) body.push({ type: 'p', text: chunk.join(' ') });
+    }
+    if (!body.length) {
+      const tail = summary.slice(lead.length).trim();
+      if (tail.length > 60) body.push({ type: 'p', text: tail });
+    }
+    // A brief from a page we could not read still gets its opening sentences.
+    if (!body.length && article?.paragraphs?.length) {
+      body = article.paragraphs.slice(0, 3).map((text) => ({ type: 'p', text }));
     }
   }
-  const body = [];
-  const chunks = [rest.slice(0, 3), rest.slice(3, 6), rest.slice(6, 9)].filter((chunk) => chunk.length);
-  for (const chunk of chunks) body.push({ type: 'p', text: chunk.join(' ') });
 
-  // Key points only when there is copy left over that the body did not use.
-  const spare = rest.slice(9, 13).map((sentence) => sentence.replace(/\s+/g, ' ').slice(0, 160));
-  if (spare.length >= 3) {
-    body.push({ type: 'h2', text: 'Key points' });
-    body.push({ type: 'list', items: spare });
-  }
+  // Never publish an empty story.
+  const paragraphCount = body.filter((block) => block.type === 'p').length;
+  if (!paragraphCount) return null;
 
-  if (!body.some((block) => block.type === 'p')) {
-    body.push({
-      type: 'p',
-      text: `This is a brief dispatch. ${source.name} has published the full report, including the context behind this headline.`,
-    });
-  }
-
-  body.push({
-    type: 'p',
-    text: `This dispatch was assembled by the NewsPulse 24 wire agent from a report published by ${source.name}. Read the original for the full account.`,
-  });
-
-  const keywords = keywordList(`${title} ${summary}`).slice(0, 10);
+  const keywords = keywordList(`${title} ${summary} ${article?.paragraphs?.slice(0, 2).join(' ') || ''}`).slice(0, 10);
   const tags = [...new Set([section.toLowerCase(), ...keywords.slice(0, 6)])].slice(0, 8);
   const sourceDate = item.publishedAt ? new Date(item.publishedAt) : null;
   const publishedAt =
@@ -584,11 +668,7 @@ export const buildDraft = (item, source, { useSourceImages = false } = {}) => {
       : new Date().toISOString();
 
   const host = sourceHost(item.url || source.url);
-  const words = body
-    .map((block) => block.text || (block.items || []).join(' ') || '')
-    .join(' ')
-    .split(/\s+/)
-    .filter(Boolean).length;
+  const words = body.map((block) => block.text || (block.items || []).join(' ') || '').reduce((total, text) => total + countWords(text), 0);
 
   const ageHours = (Date.now() - new Date(publishedAt).getTime()) / 3_600_000;
   const freshness = ageHours < 2 ? 15 : ageHours < 6 ? 11 : ageHours < 12 ? 7 : ageHours < 24 ? 3 : 0;
@@ -596,13 +676,13 @@ export const buildDraft = (item, source, { useSourceImages = false } = {}) => {
   const score = Math.round(
     Math.min(
       100,
-      (summary.length >= 700 ? 30 : summary.length >= 380 ? 24 : summary.length >= 180 ? 17 : 10) +
-        confidence * 25 +
-        (image.matched ? 15 : 5) +
+      (fullReport ? 30 : articleReady ? 24 : summary.length >= 380 ? 20 : 14) +
+        confidence * 22 +
+        (image.matched ? 14 : 5) +
         Math.min(15, source.weight * 8) +
-        (cleaned.length >= 4 ? 12 : cleaned.length >= 2 ? 8 : 3) +
+        (words >= 300 ? 14 : words >= 150 ? 9 : 4) +
         freshness +
-        (item.enriched ? 4 : 0),
+        (item.enriched ? 3 : 0),
     ),
   );
 
@@ -633,6 +713,8 @@ export const buildDraft = (item, source, { useSourceImages = false } = {}) => {
     attribution: { name: source.name, url: item.url, host, automated: true },
     score,
     automated: true,
+    report: fullReport ? 'full' : 'brief',
+    wordCount: words,
   };
 };
 
@@ -659,6 +741,7 @@ export const ingestItems = (items, source, config, { limit = 20 } = {}) => {
   const state = read();
   const agent = state.automation;
   const seen = new Set(agent.seen);
+  const usage = imageUsage();
   const accepted = [];
   const rejected = [];
 
@@ -669,7 +752,8 @@ export const ingestItems = (items, source, config, { limit = 20 } = {}) => {
       rejected.push({ item, reason: 'older than the freshness window' });
       continue;
     }
-    const draft = buildDraft(item, source, { useSourceImages: config.useSourceImages });
+    const draft = buildDraft(item, source, { useSourceImages: config.useSourceImages, imageUsage: usage });
+    if (draft) usage.set(draft.image, (usage.get(draft.image) || 0) + 1);
     if (!draft) {
       rejected.push({ item, reason: 'not enough copy in the feed item' });
       continue;
@@ -834,7 +918,9 @@ export const runAutomationCycle = async ({ manual = false, sourceId = null } = {
   let enriched = 0;
   const reports = [];
 
-  const enrichBudget = config.enrich === false ? 0 : 6;
+  // Extraction is the difference between a headline and a report, so it runs
+  // on every recent item the run can afford — not just the thin ones.
+  const enrichBudget = config.enrich === false ? 0 : 14;
 
   // Four channels at a time: fast enough to feel instant, polite to publishers.
   const queueOfSources = [...sources];
@@ -847,12 +933,12 @@ export const runAutomationCycle = async ({ manual = false, sourceId = null } = {
 
         // Spend the enrichment budget on recent, thin items only.
         const enrichedByUrl = new Map();
-        for (const item of items.slice(0, 12)) {
+        for (const item of items.slice(0, 14)) {
           if (enriched >= enrichBudget) break;
           if (!isRecentEnough(item, config.maxAgeHours ?? 36)) continue;
-          if (!item.summary || stripHtml(item.summary).length < 160) {
+          if (!item.summary || stripHtml(item.summary).length < 160 || config.enrich !== false) {
             enriched += 1;
-            const fuller = await enrichArticle(item, config);
+            const fuller = await enrichArticle(item, config, source);
             enrichedByUrl.set(item.url, fuller);
           }
         }
@@ -900,6 +986,28 @@ export const runAutomationCycle = async ({ manual = false, sourceId = null } = {
   await Promise.all(workers);
 
   let nextConfig = read().automation;
+  let rewritten = 0;
+
+  // Optional: hand the strongest new drafts to the newsroom model so they read
+  // like written copy rather than a stitched extract. No key, no problem — the
+  // extracted report is already publishable.
+  if (nextConfig.ai?.enabled && ingested > 0) {
+    const candidates = nextConfig.queue
+      .filter((entry) => entry.status === 'pending' && entry.draft.report === 'full')
+      .sort((a, b) => b.score - a.score)
+      .slice(0, nextConfig.ai.maxPerRun || 2);
+    for (const entry of candidates) {
+      const result = await rewriteQueueItem(entry.id, { endpoint: nextConfig.ai.endpoint });
+      if (result.ok) rewritten += 1;
+    }
+    nextConfig = read().automation;
+    agentLog(
+      rewritten ? 'success' : 'warn',
+      rewritten
+        ? `Rewrote ${rewritten} draft${rewritten === 1 ? '' : 's'} with the newsroom model`
+        : 'Rewrite pass found no configured model — published the extracts as they are',
+    );
+  }
 
   if (nextConfig.mode === 'auto' && ingested > 0) {
     const pending = nextConfig.queue
@@ -926,6 +1034,7 @@ export const runAutomationCycle = async ({ manual = false, sourceId = null } = {
         at: finished,
         ingested,
         published,
+        rewritten,
         failures,
         channels: reports.slice(0, 20),
       },
@@ -943,7 +1052,7 @@ export const runAutomationCycle = async ({ manual = false, sourceId = null } = {
   );
   if (!manual) releaseLock();
 
-  return { ingested, published, failures, channels: reports.length };
+  return { ingested, published, rewritten, failures, channels: reports.length };
 };
 
 /** Reads a site's HTML and finds the feeds it advertises. */

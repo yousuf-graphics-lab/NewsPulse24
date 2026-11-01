@@ -88,6 +88,7 @@ const defaultAutomation = () => ({
   useSourceImages: false,
   sections: ['World', 'Business', 'Technology', 'Science', 'Health', 'Sports', 'Entertainment', 'Opinion', 'Lifestyle'],
   sources: defaultSources(),
+  ai: { enabled: false, endpoint: '/api/write', maxPerRun: 2 },
   queue: [],
   seen: [],
   log: [],
@@ -146,6 +147,11 @@ const normaliseAutomation = (raw) => {
         lastError: typeof source.lastError === 'string' ? source.lastError.slice(0, 240) : '',
       }))
       .slice(0, 30),
+    ai: {
+      enabled: raw.ai?.enabled === true,
+      endpoint: typeof raw.ai?.endpoint === 'string' && raw.ai.endpoint ? raw.ai.endpoint.slice(0, 300) : base.ai.endpoint,
+      maxPerRun: asNumber(raw.ai?.maxPerRun, base.ai.maxPerRun, 1, 10),
+    },
     queue: asArray(raw.queue)
       .filter((item) => item && item.id && item.draft && item.draft.title)
       .slice(0, MAX_QUEUE),
